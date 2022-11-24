@@ -118,7 +118,7 @@ public:
     
     bool shouldsave = false;
     std::uint64_t mysaveidx=0;
-    
+        
     
     {
       const bool withaudio=true;
@@ -331,11 +331,12 @@ public:
 		  {
 		    uint64_t msizebytes = cvmatsize( mat );
 		    ++nsceneframes;
+		    ++frameidx; //Total frames since start.
 		    if( shouldsave )
 		      {
 			scenesavet.back()->tb.add( mat, ts, msizebytes);
 		      }
-		
+		    
 		    if( isactive("scene") )
 		      {
 			scene_frames->add( mat, ts, msizebytes, memdrop ); //REV: not guaranteed to be contiguous memory...
@@ -385,7 +386,7 @@ public:
 #define NFRAMES_TO_TRIGGER_PRINT 3
 	if( nsceneframes > NFRAMES_TO_TRIGGER_PRINT || neyeframes > NFRAMES_TO_TRIGGER_PRINT )
 	  {
-	    fprintf(stderr, "Took [%lf] sec to pop/push [%lu] (SCENE: %lu   EYE: %lu) packets to decoders (and decode?), and push to timed buffers/savers\n", etime.elapsed(), npopped, nsceneframes, neyeframes);
+	    fprintf(stderr, "Took [%lf] sec to pop/push [%lu] (SCENE: %lu   EYE: %lu) packets to decoders (and decode?), and push to timed buffers/savers (note: total scene frames: [%lu] in [%5.2lf] seconds (=[%lf] fps))\n", etime.elapsed(), npopped, nsceneframes, neyeframes, frameidx, totaltime.elapsed(), frameidx/totaltime.elapsed());
 	  }
 #endif
 
