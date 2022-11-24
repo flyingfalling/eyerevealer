@@ -1,0 +1,144 @@
+=========================
+COMPILING / LIBRARY ISSUES
+=========================
+
+0) FFMPEG version -- currently cmake I check whether FFMPEG >= 5 or is less. I will work with either 4 or 5. Some changes to
+how audio is handled (ch_layout etc.) happened between these versions, and CMAKE sets a define that I use to change some behaviors
+for decoding audio and writing it to file (determining audio format specifically...).
+
+A change in FFMPEG structs or big FFMPEG version bump may break this in the future....
+
+
+1) Realsense libs -- check your udev rules if you install from source, if you can't read it. You need to pass -DWITH_REALSENSE to enable compilation with realsense.
+
+2) VAAPI etc -- your system needs to have appropriate backend stuff installed for e.g. intel/nvidia/amd for accessing the encoders.
+
+
+=========================
+Areas for improvement/TODO (things to be aware of):
+=========================
+
+-1)  Pupil Invisible and RTP time in FFMPEG
+Raw timestamps for synchronization of eye time and video time are contained in RTP packets which are inaccessible to FFMPEG. Thus, I use a workaround to access the packets via casting a void pointer to a hidden (internal) ffmpeg structure that is not in the public API/ABI. This structure (and other structures that determine its sizeof() etc.) may change in size, thus leading to issues. I include headers that describe the sizes of these items and the necessary parts I need to access, but these are (may be) determined by the versio of FFMPEG.
+
+Currently, the headers are based on reference to version 5.1 of FFMPEG (libavformat/rtpdec.h and libavformat/rtsp.h and such). These refer to other types in other sub-libraries, e.g. AVFrame etc., which will (again) depend upon the version of FFMPEG (or, that sub-library specifically...)
+
+I have not implemented the differential logic that checks which FFMPEG is installed/being used, and uses different ghetto-headers based on that, so I recommend using as close a version to 5.1 as possible (for pupil invisible).
+
+A change in the sizes of a struct that moves everthing will likely result in a segfault (or really weird sync behavior) since it will read RTP times from some random pointer offset, possibly within but possibly not within some FFMPEG-allocated memory.
+
+
+
+0)  Recording (save all raw) does not stop even if a device disconnects, and if a device disconnects it does not automatically reconnect nor start saving.
+
+USER WARNING: make sure not devices have disconnected at regular intervals
+
+TODO: play a sound when a device disconnects
+TOOO: automatically reconnect and start saving (note: same directory?)
+
+
+1)  YUV420 (h264?) writing of U16 -> U8 i.e. in mockdepthvideowriter assumes that reading/writing endianness is the same on both ends (or, I should at least check and record it so that user can read it in that way if possible).
+
+USER WARNING: be sure your endianness is the same for writing/reading sides
+
+
+2) I use av_frame_alloc() and av_frame_free() throughout in loops, instead of simply having single alloced struct, and av_frame_unref() after using it. I do this because sometimes I swap in my own memory (i.e. non-buffered?) from e.g. cv::Mat into frames, and I want to have control over when frames are being dealloced? Note, that av_frame_free does not free ->data[0] it seems, it simply frees the struct itself. My freeing probably is a side effect of av_frame_free calling unref() before it deallocates the struct...
+
+TODO: compress these into single allocations and unref() etc. (not much gain)
+
+
+
+*********** FIXED?
+* 3) Attempting to connect or possibly continue streaming while tobii3 (and probably tobii2 and pupil) are in low-battery state will segfault/fail/error because they just turn off or suspend their RTSP stuff.
+REV: Shutting off the device even while streaming/recording (raw saving) does seem to correctly work because it is removed after the 15 second timeout, using the dead-man's switch.
+Suggestion: constatly check battery state in separate thread over REST, stop streaming/recording if battery gets too low.
+
+
+*********** FIXED
+* 4) Pupil invis or tobii3 etc is not removed from "available" immediately even if disconnect from network?
+This is because they seem to randomly not respond to mdns queries for up to 15 seconds...? So if I disconnected it would DC from RTSP stream even though everything is still fine and the service/device is still there...
+So, this means that it takes about 15 seconds after disconnecting (truly disconnecting) for the zeroconf device to be recognized as disconnected. Tobii2 is fine since it uses a different mechanism (some auto dns shit?)? Listens/pings to a known address.
+
+## REV: FIXED -> Use a timeout (15sec) and only if it is not refreshed in that period it removes API/RTSP. Note zeroconf/mdns services are "queried" regularly, we do not use zeroconf in the stateful "announce" and listen to multicast shouts etc...(REV: how to do that nicely in C++? Use avahi etc.? :().
+
+
+*********** FIXED
+* 5) Tobii3 seems to have a bug (in firmware 1.23-puma?) in which the RTSP server disconnects or stops sending/times out, leading to either simply frozen RTSP stream from TOBII3, and/or simply disconnect (due to RTSP/API server disappearing for over the timeout of 15 seconds, and me removing it). At least with the way that I am connecting to it. Other servers also seemed to have random disconnect errors. I am not sure what is the cause.
+RELATED:  Random RTSP decode error (tobii3?) cause sudden exit when packet_send (?) returns errorful V (and note: decode errors)
+
+## REV: FIXED -> An update to firmware 1.28 or 1.29 (nov 2022) seems to have fixed the issue -> I do not experience the shut-offs, although the API/RTSP zeroconf do stop responding for up to 6 seconds at a time.
+
+
+
+6) TODO: Display current "offset" and "backed up frames" (i.e. slowness of decode speed) in the GUI.
+
+7) TODO: Add USB camera support (v4l driver or...just opencv cap? haha). But then no sound. Add sound support? Ugh.
+
+8) TODO: Allow saving of "processed" streams, instead of just raw
+
+9) TODO: Integrate with salmap_rv etc. for real-time saliency processing
+
+10) TODO: Temporal and spatial synchronization and binding of devices in real time
+
+11) TODO: buttons to start saving locally in devices and send signals (e.g. tobii and pupil)
+
+12) TOOD: Integration with SLAM, etc.
+
+13) TODO: Replay/copy stuff from (local) saved disks (convert to readable format without separate script)
+
+14) TODO: Replay/copy stuff from recordings on local devices (e.g. saved on tobii3 SD card). (not possible with pupil? Or tobii?)
+
+15) TODO: Better depth visualization
+
+16) TODO: Eye movement smoothing etc. (real time?). Blink detection.
+
+17) TODO: Run "server" on e.g. mobile phone that streams realsense (via rs2 library?), and offers it up over net. I.e. realsense receiver that is not USB.
+
+18) TODO: package for use on android/iphone (REV: need to redo whole GUI...).
+
+19) TODO: optimization of encoding (writing to disk) and decoding to use hardware where possible (REV: note need to make sure we are lossless...from original format at least?).
+
+20) TODO: change encoders from calling FFMPEG via a pipe and command line to properly implementing it in C/C++ here (so that we can access errors etc...). I started with **enc.hpp but it doesn't seem to work.
+
+
+====================================
+Debug/Errors:
+====================================
+
+****** FIXED
+*1) Random deadlocks (tobii3) cause run out of memory (slow writing while saving, no clear cause?).
+
+-> (usually realtime freezes seemingly -- then problem).
+-> Seems to occur if I e.g. open another program while it is streaming/saving, which causes it to "get behind" in decoding. Possibly due to fighting over the network?
+-> Determined that it is filling up the decoded timed buffers (?). And it can not catch back up...takes too long to decode/push per loop (REV: possibly due to data copy?)
+
+----> REV: ensure nothing else runs on the PC at this time? Why the fuck does this cause an issue? Mainly caused by thunderbird etc opening? I.e. it is NETWORK RELATED maybe?
+--> Seems to be a bottleneck, only happens when on battery and when saving both realsense and tobii3, and open e.g. thunderbird (network related?)
+--> Memory must be building up in the MBUF!!! (set a threshold for it?) (and or timed buffers)
+--> REV: yes it builds up in MBUF, but it also builds up in TIMED_BUFFER (i.e. since it can't display them as requested one is not shown?). So, I request 190 but drop all before it? Anyways, I should drop all before even if it can't find one? Just get the "last"?
+--> For saving, I can't drop frames if we want proper experimental data (although I can print how many there are?). Note, if we drop at network intake, it won't matter anyways.
+
+Solutions:
+Give warnings when:
+A) display is "behind" (and fix it so it does not over-tax memory) -- drop timed_buffer up to current, and show (X seconds behind real-time). If we are moving further and further behind realtime (beyond some set value) we have a problem (requires knowledge of contents of TB)
+B) mbuf is too large (requires knowledge of what is in MBUF) -- solution -- warning and possibly exit/stop saving?
+// REV: e.g. mbuf sometimes holds AVFrame* or AVFrame (in which case could be 1920x1080x3 = 6.22 MB each), sometimes std::byte
+// REV: allow user to estimate size of held elements at creation time? Whenever I "add" I not only pass the type, but also (optionally) the estimated size of the added element. MBUF keeps an internal representation of total size and adds/subtrs to maintain estimate size of HELD objects. Timed-buffer can do same.
+C) saving timed-buffers too large (growing) -- solution: none (stop and warn?) -- I already do this in "text"
+
+## REV: fixed -> we now limit the size of each TBUF/MBUF in both number of units (actually we allow unlimited), as well as total byte size. Byte size is determined by a user function before pushing back an element, and passed as an argument. For "display" buffers, we allow dropping of the oldest elements when they get too full (REV: should I instead drop intermediate frames at regular intervals, i.e. decrease sampling rate? -> Doesn't matter, I still have to decode everything to get to those later frames...unless I want to "skip" ahead -> but I can't skip ahead because I need to save for raw saving).
+
+## REV: fixed -> we also jump forward and back in real-time display based on the slowest stream.
+
+## REV: better solution -- directly write encoded (h264) packets into a file without decoding them for the raw saving. PROBLEM: custom timing and knowing the "settings" of this "show" (i.e. image size, etc., is store in the SIP/SDP data, which I can't access from FFMPEG...which has horrible (hidden) RTSP interface, I can't access RTP packets etc. directly).. So, I would have to at least create a container of the proper size, and then properly write which stream is which, and mux everything into it, at the proper rate.
+
+
+****** FIXED
+*2) Realsense cameras are not syncronized (IR and color/depth)
+
+## REV: fixed -> issue was that we were creating the cv::Mat pointing to the realsense rs2::frame data, which does not copy or create data for the cv::Mat. It worked if we copied, but without it, our cv::Mat that we pushed to a timed_buffer would actually point to that rs2::frame's data bufer, which is probably some kind of rs2 rotating buffer, and thus it was soon overwritten with the newest data (the pointer still pointed there so we saw whatever newer stuff was there). Solved by copying at intake only for realsense. Checked that we do the same thing for ITD (when we copy our buffers), and tobii3/2 and pupil invs (of course we do, copying from AVFrame*).
+
+
+****** WORKED AROUND (FIXED)
+3) Intel (?) media? VAAPI encoding driver for h265 below some version for nv12? have a bug causing corrupted output.
+WORKAROUND: using h264 by default instead since it works fine.

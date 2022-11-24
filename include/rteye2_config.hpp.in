@@ -1,0 +1,5 @@
+// the configured options and settings for rteye2
+#define rteye2_VERSION_MAJOR @rteye2_VERSION_MAJOR@
+#define rteye2_VERSION_MINOR @rteye2_VERSION_MINOR@
+#cmakedefine WITH_ITD
+#cmakedefine WITH_REALSENSE
