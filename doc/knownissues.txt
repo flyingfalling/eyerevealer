@@ -142,3 +142,12 @@ C) saving timed-buffers too large (growing) -- solution: none (stop and warn?) -
 ****** WORKED AROUND (FIXED)
 3) Intel (?) media? VAAPI encoding driver for h265 below some version for nv12? have a bug causing corrupted output.
 WORKAROUND: using h264 by default instead since it works fine.
+
+
+
+
+
+Installing openSUSE (tumbleweed)
+
+librealsense CMAKE files must be edited to remove all reference to realsense-file
+

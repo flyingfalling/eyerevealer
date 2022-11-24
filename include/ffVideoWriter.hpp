@@ -31,7 +31,10 @@ extern "C"{
 
 //OPENCV
 #include <opencv2/opencv.hpp>
+
+#ifdef USEH5
 #include <opencv2/hdf/hdf5.hpp>
+#endif
 
 
 //My libs
@@ -148,7 +151,7 @@ public:
     //REV: glitches on newer intel processro VAAPI (11th and 12th gen) make corrputed HEVC output. Waiting for ffmpeg upstream patch...
     //Changed to h264 for now...
     const std::string encoder = "h264_vaapi"; //"hevc_vappi";
-    
+    //vaapi_device = "/dev/dri/renderD129";
     std::string cmd;
     try{
       cmd = "ffmpeg";
@@ -160,7 +163,7 @@ public:
       cmd += " -v verbose";
 #endif
       //cmd += " -fflags +discardcorrupt";
-
+      fps=30;
       cmd += " -init_hw_device vaapi=foo:" + vaapi_device; //-hwaccel vaapi -vaapi_device " + vaapi_device;
       cmd += " -hwaccel vaapi -hwaccel_output_format vaapi -hwaccel_device foo";
       cmd += " -f rawvideo -vcodec rawvideo";//input options -- input will be raw video frames
@@ -762,7 +765,7 @@ public:
 //https://trac.ffmpeg.org/wiki/Hardware/VAAPI
 // The encoders only accept input as VAAPI surfaces. If the input is in normal memory, it will need to be uploaded before giving the frames to the encoder - in the ffmpeg utility, the hwupload filter can be used for this. It will upload to a surface with the same layout as the software frame, so it may be necessary to add a format filter immediately before to get the input into the right format (hardware generally wants the nv12 layout, but most software functions use the yuv420p layout).
 
-
+#ifdef USEH5
 
 
 //REV: is H5 access unsave from opencv? FUCK
@@ -994,6 +997,9 @@ struct h5VideoReader
     return vec;
   }
 }; //h5VideoReader
+
+#endif // ifdef WITH_CV_HDF5
+
 
 
 enum TS_TYPE

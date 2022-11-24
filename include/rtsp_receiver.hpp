@@ -592,7 +592,7 @@ bool rtsp_receiver::init( )
   av_dict_set(&opts, "thread_queue_size", "512", 0); //REV: not sure what this is ... seems to be read both for demux and mux?
   // Set to 8 or 1 depending on number of input files?
   //av_dict_set(&opts, "rtsp_transport", "tcp", 0);
-  av_dict_set(&opts, "rtsp_flags", "prefer_tcp", 0);
+  //av_dict_set(&opts, "rtsp_flags", "prefer_tcp", 0);
   
   
   reset_streamtime(); //REV: Should either do here or after the call, not sure...

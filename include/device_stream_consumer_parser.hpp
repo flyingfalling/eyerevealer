@@ -381,7 +381,7 @@ public:
 
   
   template <typename ST, typename STT>
-  void rawsaveloop_hdf5( loopcond& loop, loopcond& saveloop, timed_buffer<ST,STT>& tbuf, const std::string& fname, const std::string& tsfname, const int fps, loopcond& working )
+  void rawsaveloop_depth( loopcond& loop, loopcond& saveloop, timed_buffer<ST,STT>& tbuf, const std::string& fname, const std::string& tsfname, const int fps, loopcond& working )
   {
     //REV: wait for first data
     wait_or_timeout_cond( [&tbuf,&saveloop]() { return (!saveloop() || tbuf.size()>0); }, loop, tbuf.cv, tbuf.pmu, 1e7 );

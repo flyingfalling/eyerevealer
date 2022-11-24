@@ -157,7 +157,7 @@ public:
 
 	      
 	      depthsavet.push_back( std::make_shared<saver_thread_info<cv::Mat,double>>());
-	      depthsavet.back()->t =std::thread( &device_stream_consumer_parser::rawsaveloop_hdf5<cv::Mat,double>, this,
+	      depthsavet.back()->t =std::thread( &device_stream_consumer_parser::rawsaveloop_depth<cv::Mat,double>, this,
 					std::ref(loop), std::ref(depthsavet.back()->saving), std::ref(depthsavet.back()->tb),
 					depthfname, depthfname+".ts", (int)((double)dsp->params["fps"]+0.5),
 					std::ref(depthsavet.back()->working) );

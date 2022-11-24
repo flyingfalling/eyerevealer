@@ -174,8 +174,8 @@ static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
     }
 
   //REV: stringbuffer contains all the results. I could parse it afterwards...
-  //fprintf(stdout, "REV: printing results in here?\n");
-  //std::cout << std::string(str_buffer);
+  fprintf(stdout, "REV: printing results in here:\n");
+  std::cout << std::string(str_buffer);
   
   return 0;
 }
@@ -193,7 +193,7 @@ struct zeroconf_service_discoverer
     mDNS mdnsobj;
     int num_sockets = mdnsobj.openClientSockets(sockets, sizeof(sockets) / sizeof(sockets[0]), 0);
 
-#if DEBUG_LEVEL > 100
+#if DEBUG_LEVEL >= 100
     std::cout << "Opened " << num_sockets << " socket" << (num_sockets ? "s" : "") << " for mDNS query\n";
 #endif
     
@@ -225,8 +225,8 @@ struct zeroconf_service_discoverer
       }
     
     
-    int res{};
-#if DEBUG_LEVEL > 100
+    int res=0;
+#if DEBUG_LEVEL >= 100
     std::cerr << "Reading mDNS query replies" << std::endl;
 #endif
     do
@@ -254,6 +254,9 @@ struct zeroconf_service_discoverer
 		if (FD_ISSET(sockets[isock], &readfs) )
 		  {
 		    //REV: push back data here
+#if DEBUG_LEVEL>=100
+		    fprintf(stdout, "CALLING MDNS QUERY RECV!\n");
+#endif
 		    records += mdns_query_recv(sockets[isock], buffer, capacity, query_callback, user_data, query_id[isock]);
 		  }
 		FD_SET(sockets[isock], &readfs);

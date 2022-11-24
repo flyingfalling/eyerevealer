@@ -498,7 +498,7 @@ void mDNS::executeQuery(const std::string &service) {
   // get replies
   int res{};
 #if DEBUG_LEVEL>100
-  MDNS_LOG << "Reading mDNS query replies\n";
+  MDNS_LOG << "Reading mDNS query replies FUCK THE POPOS\n";
 #endif
   do {
     struct timeval timeout;

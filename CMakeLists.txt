@@ -53,7 +53,6 @@ if(WITH_REALSENSE)
 	find_package( realsense2 REQUIRED )
 	list(APPEND EXTRA_INCLUDES ${realsense2_INCLUDE_DIRS})
 	list(APPEND EXTRA_LIBS realsense2)
-	
 	#include_directories( ${realsense2_INCLUDE_DIRS})
 endif()
 
@@ -85,6 +84,7 @@ find_package(FFMPEG 4.4.0 COMPONENTS avdevice avfilter avformat avcodec avutil s
 
 add_compile_definitions(FFMPEG_LIB_VERSION=${FFMPEG_VERSION})
 
+include_directories( ${FFMPEG_INCLUDE_DIRS} )
 
 add_compile_definitions(FFMPEG_LIB_VERSION=${FFMPEG_VERSION})
 

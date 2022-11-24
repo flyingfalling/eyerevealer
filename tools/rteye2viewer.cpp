@@ -60,7 +60,7 @@ extern "C"{
 
 //OPENCV
 #include <opencv2/opencv.hpp>
-#include <opencv2/hdf/hdf5.hpp>
+//#include <opencv2/hdf/hdf5.hpp>
 
 
 
@@ -4360,7 +4360,8 @@ struct uxwindow
     cleanup();
     
     if (!glfwInit())
-      { terminate(1); }
+      { fprintf(stderr, "Could not init glfw?\n");
+	terminate(1); }
     
     //Set GLFW's error callback function
     glfwSetErrorCallback(error_callback);
@@ -4404,6 +4405,7 @@ struct uxwindow
 
     if (!win)
       {
+	fprintf(stderr, "Could not create glfw window?\n");
 	terminate(1);
       }
 
