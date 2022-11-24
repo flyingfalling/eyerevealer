@@ -104,6 +104,7 @@ struct realsense_parser
     const bool dropmem = true;
     
     uint64_t frameidx=0;
+    Timer totaltime;
     
     while( localloop() && loop() )
       {
@@ -329,7 +330,7 @@ struct realsense_parser
 #if DEBUG_LEVEL>0
 		    if( frameidx % FRSKIP == 0 )
 		      {
-			fprintf(stdout, "REALSENSE: (FINISHED frame %ld) (%lf msec)\n", frameidx, lf.elapsed()*1e3);
+			fprintf(stdout, "REALSENSE: (FINISHED frame %ld) (%lf msec) (total: %lf sec, i.e. %lf fps)\n", frameidx, lf.elapsed()*1e3, totaltime.elapsed(), frameidx/totaltime.elapsed());
 		      }
 #endif
 		  }
