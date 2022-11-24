@@ -424,7 +424,7 @@ public:
 #ifdef USEMOCKDEPTH
 	    if( !mdvw.is_open() )
 	      {
-		std::string tmppath = path + ".mkv";
+		std::string tmppath = path + RTEYE_VID_EXT;
 		fprintf(stdout, "REV: OPENING DEPTH (OR MKV) FILE (%s)!!!\n", tmppath.c_str());
 		mdvw.open( tmppath
 			   , val, fps

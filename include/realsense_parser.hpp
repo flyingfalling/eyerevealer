@@ -82,12 +82,16 @@ struct realsense_parser
     //  https://dev.intelrealsense.com/docs/rs-motion
     
     
-    std::string colorfname="rs_color.mkv";
-    std::string infraLfname="rs_infraL.mkv";
-    std::string infraRfname="rs_infraR.mkv";
-    std::string depthfname="rs_depth.h5";
+    std::string colorfname="rs_color" + RTEYE_VID_EXT;
+    std::string infraLfname="rs_infraL" + RTEYE_VID_EXT;
+    std::string infraRfname="rs_infraR" + RTEYE_VID_EXT;
+    std::string depthfname="rs_depth";
 
-    //std::string depthfname="rs_depth.mkv";
+#ifdef USEH5
+    depthfname += ".h5";
+#endif
+
+    //std::string depthfname="rs_depth" + RTEYE_VID_EXT;
     std::string gyrofname="rs_gyro.32FC3";
     std::string accelfname="rs_accel.32FC3";
 

@@ -3,8 +3,8 @@
 #include <CompareVersion/CompareVersion.hpp>
 
 #define FRSKIP 150
-#define DEBUG_LEVEL 101
-#define HTTP_DEBUG_LEVEL 100
+#define DEBUG_LEVEL 1
+#define HTTP_DEBUG_LEVEL 0
 
 //Use HDF5 (with global static mutex in h5VideoWriter) for raw saving depth
 //#define USEH5
@@ -14,6 +14,9 @@
 //REV: fullsize, with ffmpeg with wasted u/v channels = 
 #define HALFDEPTH
 #define HALFDEPTH_INTERPO cv::INTER_AREA
+
+//#define RTEYE_VID_EXT ".mp4";
+static const std::string RTEYE_VID_EXT = ".mp4";
 
 
 //Use opencv VideoWriter (vs ghetto piping ffmpeg version...)

@@ -141,6 +141,7 @@ public:
     //export LIBVA_DRIVER_NAME=i965
     //https://github.com/Unmanic/unmanic/issues/167
     std::string vaapi_device = get_DRI_render_node(); //REV: can I discover this naturally some way?
+    //vaapi_device = "/dev/dri/renderD129";
     
     if( fps <= 0 )
       {
@@ -151,7 +152,7 @@ public:
     //REV: glitches on newer intel processro VAAPI (11th and 12th gen) make corrputed HEVC output. Waiting for ffmpeg upstream patch...
     //Changed to h264 for now...
     const std::string encoder = "h264_vaapi"; //"hevc_vappi";
-    //vaapi_device = "/dev/dri/renderD129";
+    
     std::string cmd;
     try{
       cmd = "ffmpeg";
@@ -163,7 +164,7 @@ public:
       cmd += " -v verbose";
 #endif
       //cmd += " -fflags +discardcorrupt";
-      fps=30;
+      //fps=30;
       cmd += " -init_hw_device vaapi=foo:" + vaapi_device; //-hwaccel vaapi -vaapi_device " + vaapi_device;
       cmd += " -hwaccel vaapi -hwaccel_output_format vaapi -hwaccel_device foo";
       cmd += " -f rawvideo -vcodec rawvideo";//input options -- input will be raw video frames
@@ -171,8 +172,10 @@ public:
       cmd += " -pix_fmt " + pxfmt; //-- input pixel format (I will pass raw byte arrays so it needs to know pixel format and size)
       cmd += " -s " + sizestr;  //more input options -- input size
       cmd += " -i -"; //INPUT specification -- Read input from stdin (of my pipe) //cmd += " -i pipe:";
+      cmd += " -flags -global_header";
       cmd += " -filter_hw_device foo";
-      cmd += " -vf 'format=nv12|vaapi,hwupload' -c:v " + encoder;
+      //cmd += " -vf 'format=nv12|vaapi,hwupload' -c:v " + encoder;
+      cmd += " -vf 'format=nv12|vaapi,hwupload,scale_vaapi=format=nv12' -c:v " + encoder;
       cmd += " -qp 0"; //output options -- specify video filters and codec
       cmd += " \"" + fullpath + "\""; //Output path (filter specification blah blah [outputsink]?) -- WRAP IN QUOTES!
     }
@@ -575,10 +578,11 @@ public:
     //REV: glitches on newer intel processro VAAPI (11th and 12th gen) make corrputed HEVC output. Waiting for ffmpeg upstream patch...
     //Changed to h264 for now...
 #ifdef USE_HW_ACCEL
+    fprintf(stdout, "MOCKDEPTH -- USING HW ACCEL ENCODING! (REV: this may not work, since writing lossless is not possible by most hw encoders?)\n");
     const std::string encoder = "h264_vaapi"; //"hevc_vappi";
     const std::string encodepreset = "fast";
 #else
-    //const std::string encoder = "libx265"; //software encoding...ugh.
+    fprintf(stdout, "MOCKDEPTH -- USING SOFTWARE ENCODING! (REV: this should work, as lossless should be possible)\n");
     const std::string encoder = "libx264"; //software encoding...ugh.
     //const std::string encodepreset = "-x265-params \"lossless=1:preset=ultrafast\"";
     const std::string encodepreset = "ultrafast"; //REV: something tells me this will not do well...filesize on order of 500MB/min
@@ -595,32 +599,34 @@ public:
       cmd += " -loglevel quiet"; //suppress all output
       cmd += " -y -nostats"; //GLOBAL -y to overwrite existing files, -nostats for suppress stats
 #endif
-#if DEBUG_LEVEL > 100
+#if (DEBUG_LEVEL > 100)
       cmd += " -v verbose";
 #endif
-
-#ifdef USE_HW_ACCEL
       //cmd += " -fflags +discardcorrupt";
+      //fps=30;
+#ifdef USE_HW_ACCEL
       cmd += " -init_hw_device vaapi=foo:" + vaapi_device; //-hwaccel vaapi -vaapi_device " + vaapi_device;
       cmd += " -hwaccel vaapi -hwaccel_output_format vaapi -hwaccel_device foo";
 #endif
-      
       cmd += " -f rawvideo -vcodec rawvideo";//input options -- input will be raw video frames
       cmd += " -framerate " + tostr<int>(fps); //input options -- (input) assumed FPS fps
       cmd += " -pix_fmt " + pxfmt; //-- input pixel format (I will pass raw byte arrays so it needs to know pixel format and size)
       cmd += " -s " + sizestr;  //more input options -- input size
       cmd += " -i -"; //INPUT specification -- Read input from stdin (of my pipe) //cmd += " -i pipe:";
-
+      cmd += " -flags -global_header";
+      
+      //cmd += " -vf 'format=nv12|vaapi,hwupload' -c:v " + encoder;
 #ifdef USE_HW_ACCEL
       cmd += " -filter_hw_device foo";
-      cmd += " -vf 'format=nv12|vaapi,hwupload'";
+      cmd += " -vf 'format=nv12|vaapi,hwupload,scale_vaapi=format=nv12'";
 #else
       cmd += " -vf 'format=nv12'";
 #endif
       cmd += " -c:v " + encoder;
       cmd += " -preset " + encodepreset;
       cmd += " -qp 0"; //output options -- specify video filters and codec
-      cmd += " \"" + fullpath + "\""; //Output path (filter specification blah blah [outputsink]?) -- WRAP IN QUOTES!
+      cmd += " \"" + fullpath + "\""; 
+
     }
     catch( std::exception& e )
       {

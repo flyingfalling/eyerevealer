@@ -26,8 +26,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 ## external_project does not assume the libs are already compiled, so it will go and do them (with cmake).
 ## fetchcontent basically grabs it and treats as sub-project etc...
 
- #REV: turn off...
-set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wshadow -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter -Wno-narrowing -Wno-format -Wno-unused-but-set-variable") # -wunused-variable -unused-function")
+
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wshadow -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter -Wno-narrowing -Wno-format -Wno-unused-but-set-variable")
 #set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2")
 

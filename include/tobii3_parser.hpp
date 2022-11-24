@@ -103,9 +103,9 @@ public:
     
     //set_loop_sleep_msec(10);
 
-    std::string scenefname = "tobii3_scene.mkv";
-    std::string micfname = "tobii3_mic.wav"; //.mkv"; //REV: causes some issues, but can hold double data etc.?
-    std::string eyefname = "tobii3_eye.mkv";
+    std::string scenefname = "tobii3_scene" + RTEYE_VID_EXT;
+    std::string micfname = "tobii3_mic.wav"; //" + RTEYE_VID_EXT; //REV: causes some issues, but can hold double data etc.?
+    std::string eyefname = "tobii3_eye" + RTEYE_VID_EXT;
     std::string datafname = "tobii3_data.json";
 
     std::deque<std::shared_ptr<saver_thread_info<cv::Mat,tobii3time_t>>> scenesavet;

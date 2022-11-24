@@ -105,7 +105,8 @@ public:
     cv::Mat mat;
 
     //REV: *FUCK* pupil only streams gaze and world!
-    std::string worldfname = "pi_world.mkv";
+    //std::string worldfname = "pi_world.mkv";
+    std::string worldfname = "pi_world" + RTEYE_VID_EXT;
     std::deque<std::shared_ptr<saver_thread_info<cv::Mat,std::uint64_t>>> worldsavet;
     bool shouldsave = false;
     std::uint64_t mysaveidx=0;

@@ -57,20 +57,22 @@ Internal image processing via opencv (>=3?)
 
 
 Dependencies:
+(see e.g. scripts/install_dependencies_ubuntu2204.sh)
 
-1) ffmpeg (version >= 4.5?) (see doc/knownissues.txt) (currently some encoding done via command-line OS pipes, so need ffmpeg exec)
+1) ffmpeg (version >= 4.4) (see doc/knownissues.txt) (currently some encoding done via command-line OS pipes, so need ffmpeg exec)
    -> libavcodec, libavformat, libswresample, libswscale, AND OTHERS
-2) libboost (version that includes beast, i.e. network http related items)
+2) libboost (version that includes beast/asio, i.e. network http related items)
 3) libopencv
 4) cmake
+5) imgui dependencies (i.e. glfw3, libxinerama, libxcursor, libxi, librandr, etc.)
+6) uuid (uuid-dev)
 
-
-Nested Dependencies:
-1) Dependencies for IMGUI (glfw, glad, opengl?)
-
+Semi-optional dependencies (needed for saving to disk using h264):
+1) VAAPI-compatible driver and setup, and set env var DRI_RENDER_NODE
+2) HDF5
 
 Optional Dependencies:
-1) librealsense (https://github.com/IntelRealSense/librealsense)
+1) librealsense (https://github.com/IntelRealSense/librealsense) (see scripts/install_realsense_ubuntu2204.sh)
 2) ITD LAB libraries (ITD binocular/stereo camera -- proprietary) (https://itdlab.com/wordpress/)
 
 
@@ -86,18 +88,49 @@ Included Dependencies (or parts of):
 Compile via e.g.:
 
 mkdir build
+
 cd build
+
 cmake ..
+
 make
 
-Or with realsense:
+
+Or, with realsense:
 
 mkdir build
+
 cd build
+
 cmake -DWITH_REALSENSE=true ..
+
 make
+
 
 
 With ITD (currently disabled in CMAKE):
+
 cmake -DWITH_ITD=true ..
 
+
+
+
+
+USAGE:
+
+./rteye2viewer.exe
+
+
+For raw saving via hardware, I have not yet implemented direct interfaces via libavcodec and libavformat yet, so it opens a pipe and executes ffmpeg. This requires (indeed it will probably still require in the future even after moving to native implementation) that VAAPI and DRI render nodes etc, are appropriately set, and that you have ensured that your driver for the corresponding VAAPI render node can support h264 with the input passed as nv12 format.
+
+
+To set the dri render node, you may set (for example):
+
+export DRI_RENDER_NODE=/dev/dri/renderD129
+
+before running the program (the environmental variable is read via env())
+
+
+Note the default (if nothing is set) is to use
+
+/dev/dri/renderD128

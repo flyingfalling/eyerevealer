@@ -174,8 +174,8 @@ static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
     }
 
   //REV: stringbuffer contains all the results. I could parse it afterwards...
-  fprintf(stdout, "REV: printing results in here:\n");
-  std::cout << std::string(str_buffer);
+  //fprintf(stdout, "REV: printing results in here:\n");
+  //std::cout << std::string(str_buffer);
   
   return 0;
 }

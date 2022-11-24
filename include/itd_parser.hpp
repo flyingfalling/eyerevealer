@@ -57,12 +57,15 @@ public:
     bool shouldsave=false;
     uint64_t mysaveidx=0;
     
-    std::string bgrfname = "itd_bgr.mkv";
-    std::string disparfname = "itd_disparity.mkv";
-    std::string monoRfname = "itd_monoR.mkv";
-    std::string monoLfname = "itd_monoL.mkv";
-    std::string depthfname = "itd_depth.h5";
-    //std::string depthfname = "itd_depth.mkv";
+    std::string bgrfname = "itd_bgr" + RTEYE_VID_EXT;
+    std::string disparfname = "itd_disparity" + RTEYE_VID_EXT;
+    std::string monoRfname = "itd_monoR" + RTEYE_VID_EXT;
+    std::string monoLfname = "itd_monoL" + RTEYE_VID_EXT;
+    std::string depthfname = "itd_depth";
+#ifdef USEH5
+    depthfname += ".h5";
+#endif
+    //std::string depthfname = "itd_depth" + RTEYE_VID_EXT;
     
     
     
