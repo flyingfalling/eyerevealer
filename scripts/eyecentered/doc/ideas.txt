@@ -1,0 +1,37 @@
+REV:
+
+Idea is:
+
+True image is eye-centered in a gray or noise background.
+Then, we blur (at various noise levels) the background to the image
+
+But only at the borders.
+
+Actually, we want to blur everywhere *BUT* the image. So just blur up to
+the image edges, e.g. edges of gaussian will enter image a bit  but not
+much. But it will go the inverse (edge) of gaussian, not the center peak.
+
+Are they the same shape? Fuck it.
+
+Need to have it "impinge" on the true image about as much as 1 sd?
+
+Furthermore, this will fuck shit up anyways, as the blur will cut off all
+high-frequency shit...? Saliency will select that "region" which has the
+input in it (obviously), but the main interest should be "within" that.
+
+Actually, everything else should be just multi-frequency noise...
+
+
+
+Should I add random noise of same frequencies of image?
+That is ideal...but not only color, but orientation etc.?
+Will that "appear" automatically by chance?
+
+
+Multiscale structure...but we will have our eyes drawn to random location...but we don't know what is there? :(
+
+Just do grey for now lol. And noise it with gaussian LPF impinging on the edges.
+
+It needs to be "gradual"? So...get the data "outside" the image? Just use a gaussian WEIGHTING of each pixel line...
+On the edge? I.e. AddWeighted...
+
