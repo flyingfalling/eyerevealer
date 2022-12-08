@@ -350,7 +350,7 @@ struct realsense_parser
 			   {
 			     rs2_vector gy = motion.get_motion_data();
 			     auto gyrval = vec3f(gy.x,gy.y,gy.z);
-
+			     
 			     if( isactive( "gyro") )
 			       {
 				 gyro_frames->add( gyrval, timestamp, sizeof(gyrval) );
@@ -361,7 +361,8 @@ struct realsense_parser
 				 gyrosavet.back()->tb.add( gyrval, timestamp, sizeof(gyrval) );
 			       }
 			   }
-			if( motion.get_profile().stream_type() == RS2_STREAM_GYRO && 
+			//REV: incorrectly was saving GYRO data twice up until 09 dec 2022 (had _GYRO here too) ;(
+			if( motion.get_profile().stream_type() == RS2_STREAM_ACCEL && 
 			    motion.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F )
 			  {
 			    rs2_vector ac = motion.get_motion_data();
