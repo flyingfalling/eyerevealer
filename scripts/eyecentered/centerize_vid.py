@@ -246,14 +246,21 @@ def blur_concentric( img, dva_per_px ):
     start = math.log(nyqsigmadva,mybase);
     end = math.log(maxsigcutoff,mybase);
     # max: sig=20 dva
-    nslices=30;
+
+    nslices=150;
     slices = np.logspace( start, end, num=nslices, base=mybase );
     slices[-1] += 1.0; #REV: just to make sure I caputre everything...
+    #print(slices);
+
+    #REV: DVA is sigsdva, not distances dva!!!!
     
     for i, val in enumerate(slices[:-1]):
         #mask = sigsdva[ (sigsdva >= slices[i]) & (sigsdva < slices[i+1]) ];
         mask = ((sigsdva>=slices[i]) & (sigsdva<slices[i+1])).astype(float);
         mask = np.stack((mask,)*3, axis=-1)
+        slwid=slices[i+1]-slices[i];
+        slwidpx = slwid/dva_per_px; # dva/dva/px = px
+        #print("MASK: {} - {} DVA (span: {}) (PX: {})".format(slices[i], slices[i+1], slwid, slwidpx));
         
         sigpx = slices[i]/dva_per_px;
         #print("Blurring between {:4.3}-{:4.3} dva with gauss sigma={:4.3} px  ({}/{} pixels)".format( slices[i], slices[i+1], sigpx, np.count_nonzero(mask), mask.size));
@@ -263,7 +270,7 @@ def blur_concentric( img, dva_per_px ):
         blurred  = cv2.GaussianBlur( img, ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
         bmask = (blurred*mask);
         
-        show=False;
+        show=False #True;
         if( show ):
             cv2.imshow("Mask", mask);
             cv2.imshow("Concentric", bmask);
@@ -282,10 +289,10 @@ def blur_concentric( img, dva_per_px ):
 #   view (horizontal and vertical) 	95 deg. horizontal / 63 deg. vertical 
 
 #REV: img received as float32, [0,1]
-def blur_it( img, blursig, blurpxrad ):
-
+def blur_it( img, blursig, blurpxrad, scaledown ):
+    
     print(img.shape); #960*2*2...
-    blurimg = blur_concentric( img, 4*(95.0/(1920)) );
+    blurimg = blur_concentric( img, scaledown*(95.0/(1920)) );
     #print(np.indices(mask.shape[0:2])); #REV: [0] of this will contain for each pixel the y idx (row#), [1] will contain x idx...
     #print(pixel_dists_from(mask, mask.shape[1]/2, mask.shape[0]/2));
     #mask = cv2.circle( mask, [int(img.shape[1]/2), int(img.shape[0]/2)], blurpxrad, [0,0,0], -1 );
@@ -304,8 +311,8 @@ def blur_it( img, blursig, blurpxrad ):
 if( __name__ == "__main__" ):
     invidfile = sys.argv[1];
     ingazefile = sys.argv[2];
-    bgpxval=120;
-    blursizepx=60; #REV: max size of blur, sigma is 1/3 of this.
+    bgpxval=60;
+    blursizepx=120; #REV: max size of blur in px, sigma is 1/3 of this.
     
     if( len(sys.argv) > 3 ):
         bgpxval = sys.argv[3];
@@ -362,10 +369,10 @@ if( __name__ == "__main__" ):
         gzx = np.mean( df.gaze2d_0[ df.gaze2d_0.notna() ] );
         gzy = np.mean( df.gaze2d_1[ df.gaze2d_1.notna() ] );
         #REV: now, get average gaze location etc. from here I guess...
-
+        
         gzx *= frame.shape[1];
         gzy *= frame.shape[0];
-
+        
         nframe = frame.copy();
         
         
@@ -373,7 +380,7 @@ if( __name__ == "__main__" ):
         #gzx = None;
         #gzy = None;
         if( np.isnan(gzx) or np.isnan(gzy) ):
-            res = bgimg.copy();
+            res = bgimg.copy() / 255;
             pass;
         else:
             cgzx = gzx - frame.shape[1]/2; #REV: centered.
@@ -384,20 +391,28 @@ if( __name__ == "__main__" ):
             bg_gzy = bgimg.shape[0]/2 + (-1 * cgzy); #this is from BOTTOM
             bg_gzy = bgimg.shape[0] - bg_gzy; #REV: this is from TOP
             res = embed_edge_gauss_blur( frame, bg_gzx, bg_gzy, bgimg, blursizepx );
-
+            
             
             #REV: draw circle...
             mygzx = int(gzx);
             mygzy = int(frame.shape[0]-gzy);
             nframe = cv2.circle( nframe, [mygzx, mygzy], 60, [220,50,50], 15 );
             pass;
-
+        
         print("Gaze ({},{})".format(gzx,gzy));
+        
+        scaledown=4;
+        
+        if( scaledown != 1 ):
+            sres = cv2.resize( res, (int(res.shape[1]/scaledown), int(res.shape[0]/scaledown)) );
+            snframe = cv2.resize( nframe, (int(nframe.shape[1]/scaledown), int(nframe.shape[0]/scaledown)) );
+            pass;
+        else:
+            sres = res;
+            snframe = nframe;
+            pass;
 
-        sres = cv2.resize( res, (int(res.shape[1]/4), int(res.shape[0]/4)) );
-        snframe = cv2.resize( nframe, (int(nframe.shape[1]/4), int(nframe.shape[0]/4)) );
-
-        sresb = blur_it( sres, 50, 100 );
+        sresb = blur_it( sres, 50, 100, scaledown );
         
         #REV: draw circle and show "normal" too
         cv2.imshow("Result", sres);
