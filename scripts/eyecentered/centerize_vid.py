@@ -1,9 +1,11 @@
 ##REV: centerize video based on eye position (i.e. make retinotopic, and apply peripheral blur, etc.)
 
-import sys
-import cv2
-import numpy as np
-import pandas as pd
+import os;
+import sys;
+import cv2;
+import numpy as np;
+import pandas as pd;
+import time;
 
 def embed_edge_gauss_blur_create( inimg255, cxpx, cypx, bgwid, bghei, bgrgb255, blurlimpx, blursigmult=1/3.0 ):
     bgimg = np.full( (bghei, bgwid, 3), bgrgb255, dtype=np.uint8 );
@@ -47,8 +49,8 @@ def embed_edge_gauss_blur( inimg255, cxpx, cypx, bgimg255, blurlimpx, blursigmul
     #REV: insert is totally outside image...
     if( left >= res.shape[1] or right < 0 or bot < 0 or top >= res.shape[0] ):
         return res;
-
-
+    
+    
     itop=0;
     ileft=0;
     ibot=inimg255.shape[0];
@@ -240,14 +242,14 @@ def blur_concentric( img, dva_per_px ):
     #      e^? = 0.063 -> log(0.063
     #REV: base is e...
     
-    maxsigcutoff = 20;
+    maxsigcutoff = 16;
     sigsdva[ (sigsdva>maxsigcutoff) ] = maxsigcutoff;
     mybase=2;
     start = math.log(nyqsigmadva,mybase);
     end = math.log(maxsigcutoff,mybase);
     # max: sig=20 dva
-
-    nslices=150;
+    
+    nslices=100;
     slices = np.logspace( start, end, num=nslices, base=mybase );
     slices[-1] += 1.0; #REV: just to make sure I caputre everything...
     #print(slices);
@@ -311,15 +313,19 @@ def blur_it( img, blursig, blurpxrad, scaledown ):
 if( __name__ == "__main__" ):
     invidfile = sys.argv[1];
     ingazefile = sys.argv[2];
-    bgpxval=60;
-    blursizepx=120; #REV: max size of blur in px, sigma is 1/3 of this.
-    
-    if( len(sys.argv) > 3 ):
-        bgpxval = sys.argv[3];
-        pass;
-    
-    bgcol255 = [bgpxval];
 
+    #REV: use mean luminance in the image? Of each channel?
+    #bgpxval=60;
+    #REV: use mean frame luminance?
+    
+    blursizepx=300; #REV: max size of blur in px, sigma is 1/3 of this.
+    
+    #if( len(sys.argv) > 3 ):
+    #    bgpxval = sys.argv[3];
+    #    pass;
+   # 
+   # bgcol255 = [bgpxval];
+    
     cap = cv2.VideoCapture( invidfile );
     if( not cap.isOpened() ):
         print("REV: video file [{}] not open?".format(invidfile));
@@ -330,7 +336,8 @@ if( __name__ == "__main__" ):
     
     bgwid = wid*2;
     bghei = hei*2;
-    bgimg = np.full( (bghei,bgwid,3), bgpxval, dtype=np.uint8 );
+    bgpxval=[0,0,0];
+    blackbgimg = np.full( (bghei,bgwid,3), bgpxval, dtype=np.uint8 );
     
     
     #gazefh = open( ingazefile, "r" ); #REV: not binary
@@ -346,6 +353,16 @@ if( __name__ == "__main__" ):
     tdelta = 1.0/fps;
     
     gazedf = pd.read_csv( ingazefile );
+
+    blurwriter = cv2.VideoWriter();
+    centwriter = cv2.VideoWriter();
+    uncentwriter = cv2.VideoWriter();
+    origwriter = cv2.VideoWriter();
+
+    odir = os.path.dirname(invidfile);
+    
+    centeyeposdf = pd.DataFrame( columns=["FRIDX", "CX", "CY"] );
+    eyeposoutfname = os.path.join( odir, "cent_eyepos.csv");
     
     while( ret ):
         #line = gazefh.readline();
@@ -380,18 +397,30 @@ if( __name__ == "__main__" ):
         #gzx = None;
         #gzy = None;
         if( np.isnan(gzx) or np.isnan(gzy) ):
-            res = bgimg.copy() / 255;
+            res = blackbgimg.copy() / 255;
+            uncentres = res;
             pass;
         else:
             cgzx = gzx - frame.shape[1]/2; #REV: centered.
             cgzy = gzy - frame.shape[0]/2; #REV: centered. (note positive is up)
-
+            
             #We must offset gaze by inverse of this number.
-            bg_gzx = bgimg.shape[1]/2 + (-1 * cgzx);
-            bg_gzy = bgimg.shape[0]/2 + (-1 * cgzy); #this is from BOTTOM
-            bg_gzy = bgimg.shape[0] - bg_gzy; #REV: this is from TOP
+            bg_gzx = bgwid/2 + (-1 * cgzx);
+            bg_gzy = bghei/2 + (-1 * cgzy); #this is from BOTTOM
+            bg_gzy = bghei - bg_gzy; #REV: this is from TOP
+            
+            toadd = [ fridx, bg_gzx/bgwid, bg_gzy/bghei]; #REV: now from TOP, note!
+            print(toadd)
+            centeyeposdf.loc[ len(centeyeposdf.index) ] = toadd;
+            imgmeanpx=np.mean(np.mean(nframe, axis=0), axis=0); #REV: compress along x then y, just leave 3 channels means.
+            print(imgmeanpx);
+            
+            bgimg = np.full( (bghei,bgwid,3), imgmeanpx, dtype=np.uint8 );
             res = embed_edge_gauss_blur( frame, bg_gzx, bg_gzy, bgimg, blursizepx );
             
+            cx = bgimg.shape[1]/2;
+            cy = bgimg.shape[0]/2;
+            uncentres = embed_edge_gauss_blur( frame, cx, cy, bgimg, blursizepx );
             
             #REV: draw circle...
             mygzx = int(gzx);
@@ -404,27 +433,65 @@ if( __name__ == "__main__" ):
         scaledown=4;
         
         if( scaledown != 1 ):
+            suncentres = cv2.resize( uncentres, (int(res.shape[1]/scaledown), int(res.shape[0]/scaledown)) );
             sres = cv2.resize( res, (int(res.shape[1]/scaledown), int(res.shape[0]/scaledown)) );
             snframe = cv2.resize( nframe, (int(nframe.shape[1]/scaledown), int(nframe.shape[0]/scaledown)) );
             pass;
         else:
+            suncentres = uncentres;
             sres = res;
             snframe = nframe;
             pass;
 
+        startt = time.time();
+        #REV: this includes the scaledown!
         sresb = blur_it( sres, 50, 100, scaledown );
+        elap = time.time()-startt;
+        print("Blur took {:4.1f} msec".format(1000*elap));
         
         #REV: draw circle and show "normal" too
-        cv2.imshow("Result", sres);
-        cv2.imshow("Orig", snframe);
-        cv2.imshow("Blur", sresb);
-        cv2.waitKey(1);
+        showhere=True;
+        if(showhere):
+            cv2.imshow("Result", sres);
+            cv2.imshow("Orig", snframe);
+            cv2.imshow("Blur", sresb);
+            cv2.imshow("Uncentered", suncentres);
+            cv2.waitKey(1);
+            print("Processing frame {}".format(fridx));
+        
+        #REV: save each frame
+        if( not blurwriter.isOpened() ):
+            #fps=30; same as input vid
+            fourcc = cv2.VideoWriter_fourcc(*"MP4V");
+            isColor = True;
+            
+            
+            blurname = os.path.join(odir, "blur.mp4");
+            centname = os.path.join(odir, "cent.mp4");
+            uncentname = os.path.join(odir, "uncent.mp4");
+            origname = os.path.join(odir, "orig.mp4");
+            
+            blurwriter.open( blurname, fourcc=fourcc, fps=fps, frameSize=(sresb.shape[1], sresb.shape[0]), isColor=isColor );
+            centwriter.open( centname, fourcc=fourcc, fps=fps, frameSize=(sres.shape[1], sres.shape[0]), isColor=isColor );
+            uncentwriter.open( uncentname, fourcc=fourcc, fps=fps, frameSize=(suncentres.shape[1], suncentres.shape[0]), isColor=isColor );
+            origwriter.open( origname, fourcc=fourcc, fps=fps, frameSize=(snframe.shape[1], snframe.shape[0]), isColor=isColor );
+            pass;
 
+        if( not blurwriter.isOpened() ):
+            print("Error");
+            exit(1);
+            pass;
         
-        
+        blurwriter.write( (sresb*255).astype(np.uint8) );
+        centwriter.write( (sres*255).astype(np.uint8) );
+        uncentwriter.write( (suncentres*255).astype(np.uint8) );
+        origwriter.write( (snframe*255).astype(np.uint8) );
+                
         ret, frame = cap.read();
         fridx+=1;
         pass;
+
+    centeyeposdf.to_csv(eyeposoutfname, index=False );
     
     #REV: end __main__
     pass;
