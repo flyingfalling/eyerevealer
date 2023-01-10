@@ -192,8 +192,13 @@ def pixel_dists_from( img, x, y ):
 #REV: bands, blur, and apply those pixels only as mask to add to the final image...
 def blur_concentric( img, dva_per_px ):
     res = img.copy();
-    
-    distspx = pixel_dists_from( img, img.shape[1]/2, img.shape[0]/2 );
+
+    time1=time.time();
+    cx = img.shape[1]/2;
+    cy = img.shape[0]/2;
+    distspx = pixel_dists_from( img, cx, cy );
+    time2=time.time();
+    print(1e3*(time2-time1));
     distsdva = distspx * dva_per_px;
     #print(distsdva);
     sigsdva = get_sigma_blur( distsdva );
@@ -249,7 +254,7 @@ def blur_concentric( img, dva_per_px ):
     end = math.log(maxsigcutoff,mybase);
     # max: sig=20 dva
     
-    nslices=100;
+    nslices=150;
     slices = np.logspace( start, end, num=nslices, base=mybase );
     slices[-1] += 1.0; #REV: just to make sure I caputre everything...
     #print(slices);
@@ -258,19 +263,276 @@ def blur_concentric( img, dva_per_px ):
     
     for i, val in enumerate(slices[:-1]):
         #mask = sigsdva[ (sigsdva >= slices[i]) & (sigsdva < slices[i+1]) ];
-        mask = ((sigsdva>=slices[i]) & (sigsdva<slices[i+1])).astype(float);
+        imask = ((sigsdva>=slices[i]) & (sigsdva<slices[i+1]));
+        mask = imask.astype(float);
         mask = np.stack((mask,)*3, axis=-1)
+        sigpx = slices[i]/dva_per_px;
+        started=time.time();
+        newmethod=False;
+        #REV: this doesn't work because I copy the matrices first? I need to blur them in place? :(
+        if( newmethod ):
+
+            tmpimg = img.copy();
+            
+            #REV: find min/max pixel dist (i.e. inner outer radius).
+            mindistpx = np.min(distspx[ imask ]);
+            maxdistpx = np.max(distspx[ imask ]);
+            print("Min {}  Max {}".format(mindistpx, maxdistpx));
+            
+            inr = mindistpx - 2.0;
+            outr = maxdistpx + 2.0;
+            if( inr < 0 ):
+                inr = 0;
+                pass;
+            
+            #REV: need to make outer circle inner square as well, i.e. four corners.
+            insqrdiag = inr / math.sqrt(2);
+            outsqrdiag = outr / math.sqrt(2); 
+            outsqr = outr; 
+
+            imgh = img.shape[0];
+            imgw = img.shape[1];
+                             
+            #top
+            topy = [cy - outsqr, cy - insqrdiag];
+            topx = [cx - outsqrdiag, cx + outsqrdiag];
+
+            skip=False;
+            if( topy[0] < 0 ):
+                topy[0] = 0;
+                pass;
+            if( topy[1] > imgh ):
+                topy[1] = imgh;
+                pass
+            
+            if( topy[0] >= imgh ):
+                #REV: empty, pass
+                skip=True;
+                pass;
+            if( topy[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+
+            
+            if( topx[0] < 0 ):
+                topx[0] = 0;
+                pass;
+            if( topx[1] > imgw ):
+                topx[1] = imgw;
+                pass
+            
+            if( topx[0] >= imgw ):
+                #REV: empty, pass
+                skip=True
+                pass;
+            if( topx[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+            
+            if( not skip ):
+                tblur = cv2.GaussianBlur( tmpimg[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ], ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
+                tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] = res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                #bmask = (tblur[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * tmask);
+                bmask = (tblur * tmask);
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                
+                #timg = img[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ];
+                #tblur = cv2.GaussianBlur( timg, ksize=(0,0), sigmaX=sigpx, sigmaY=0 ); #REV: this had better use the proper matrix stuff outside of it, right?!
+                #bmask = (tblur*tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                pass;
+            
+            #bot
+            topy = [cy + insqrdiag, cy + outsqr];
+            topx = [cx - outsqrdiag, cx + outsqrdiag];
+
+            skip=False;
+            if( topy[0] < 0 ):
+                topy[0] = 0;
+                pass;
+            if( topy[1] > imgh ):
+                topy[1] = imgh;
+                pass
+            
+            if( topy[0] >= imgh ):
+                #REV: empty, pass
+                skip=True;
+                pass;
+            if( topy[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+
+            
+            if( topx[0] < 0 ):
+                topx[0] = 0;
+                pass;
+            if( topx[1] > imgw ):
+                topx[1] = imgw;
+                pass
+            
+            if( topx[0] >= imgw ):
+                #REV: empty, pass
+                skip=True
+                pass;
+            if( topx[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+            
+            if( not skip ):
+                tblur = cv2.GaussianBlur( tmpimg[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ], ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
+                tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] = res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                bmask = (tblur * tmask);
+                #bmask = (tblur[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * tmask);
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                
+                #tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                #timg = img[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ];
+                #tblur = cv2.GaussianBlur( timg, ksize=(0,0), sigmaX=sigpx, sigmaY=0 ); #REV: this had better use the proper matrix stuff outside of it, right?!
+                #bmask = (tblur*tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                pass;
+
+            
+            #left
+            topx = [cx - outsqr, cx - insqrdiag];
+            topy = [cy - outsqrdiag, cy + outsqrdiag]
+
+            skip=False;
+            if( topy[0] < 0 ):
+                topy[0] = 0;
+                pass;
+            if( topy[1] > imgh ):
+                topy[1] = imgh;
+                pass
+            
+            if( topy[0] >= imgh ):
+                #REV: empty, pass
+                skip=True;
+                pass;
+            if( topy[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+
+            
+            if( topx[0] < 0 ):
+                topx[0] = 0;
+                pass;
+            if( topx[1] > imgw ):
+                topx[1] = imgw;
+                pass
+            
+            if( topx[0] >= imgw ):
+                #REV: empty, pass
+                skip=True
+                pass;
+            if( topx[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+            
+            if( not skip ):
+                tblur = cv2.GaussianBlur( tmpimg[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ], ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
+                tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] = res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                bmask = (tblur * tmask);
+                #bmask = (tblur[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * tmask);
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                
+                #tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                #timg = img[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ];
+                #tblur = cv2.GaussianBlur( timg, ksize=(0,0), sigmaX=sigpx, sigmaY=0 ); #REV: this had better use the proper matrix stuff outside of it, right?!
+                #bmask = (tblur*tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                pass;
+            
+            #right
+            topx = [cx + insqrdiag, cx + outsqr];
+            topy = [cy - outsqrdiag, cy + outsqrdiag]
+
+            skip=False;
+            if( topy[0] < 0 ):
+                topy[0] = 0;
+                pass;
+            if( topy[1] > imgh ):
+                topy[1] = imgh;
+                pass
+            
+            if( topy[0] >= imgh ):
+                #REV: empty, pass
+                skip=True;
+                pass;
+            if( topy[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+
+            
+            if( topx[0] < 0 ):
+                topx[0] = 0;
+                pass;
+            if( topx[1] > imgw ):
+                topx[1] = imgw;
+                pass
+            
+            if( topx[0] >= imgw ):
+                #REV: empty, pass
+                skip=True
+                pass;
+            if( topx[1] < 0 ):
+                #REV: empty
+                skip=True
+                pass;
+            
+            if( not skip ):
+                tblur = cv2.GaussianBlur( tmpimg[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ], ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
+                tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] = res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                bmask = (tblur * tmask);
+                #bmask = (tblur[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * tmask);
+                res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                
+                #tmask = mask[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :];
+                #timg = img[ int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), : ];
+                #tblur = cv2.GaussianBlur( timg, ksize=(0,0), sigmaX=sigpx, sigmaY=0 ); #REV: this had better use the proper matrix stuff outside of it, right?!
+                #bmask = (tblur*tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] * (1-tmask);
+                #res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] =  res[int(topy[0]):int(topy[1]), int(topx[0]):int(topx[1]), :] + bmask;
+                pass;
+            pass;
+        else:
+            #REV: note, eventually I may want to do this with non-circular...so just prep it now? Cant use dist from middle then.
+            blurred  = cv2.GaussianBlur( img, ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
+            bmask = (blurred*mask);
+            
+            res = res * (1-mask);
+            
+            #REV: add new pixels (blurred, and >0 only on the mask locations).
+            res = res + bmask;
+            pass;
+
         slwid=slices[i+1]-slices[i];
         slwidpx = slwid/dva_per_px; # dva/dva/px = px
-        #print("MASK: {} - {} DVA (span: {}) (PX: {})".format(slices[i], slices[i+1], slwid, slwidpx));
         
-        sigpx = slices[i]/dva_per_px;
+        nmsec=time.time()-started;
+        print("{:4.1f} msec  MASK: {} - {} DVA (span: {}) (PX: {})".format(nmsec*1e3, slices[i], slices[i+1], slwid, slwidpx));
+
+        
         #print("Blurring between {:4.3}-{:4.3} dva with gauss sigma={:4.3} px  ({}/{} pixels)".format( slices[i], slices[i+1], sigpx, np.count_nonzero(mask), mask.size));
         #print(mask);
+            
         
-        
-        blurred  = cv2.GaussianBlur( img, ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
-        bmask = (blurred*mask);
+            
+            
         
         show=False #True;
         if( show ):
@@ -280,8 +542,12 @@ def blur_concentric( img, dva_per_px ):
             cv2.waitKey(0);
             pass;
 
-        res = res * (1-mask);
-        res = res + bmask;
+        #REV: use numpy where?
+        #np.where(mask!=0,imageAllBlurred,image)
+        
+        
+        #REV: delete old pixels (leave everything that is 0 in the mask)
+        
         pass;
     
     return res;
