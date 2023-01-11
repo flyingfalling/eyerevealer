@@ -185,7 +185,175 @@ def pixel_dists_from( img, x, y ):
 
 
 
+def sample_gaussian( pos, img, sigmapxs, sigpxcutoff=0.5 ):
+    x=int(pos[1]);
+    y=int(pos[0]);
+    #if( x % 30 == 0 and y % 30 == 0 ):
+    #    print("Doing x, y: {} {} / {}".format(x,y,img.shape));
+    sigmapx = sigmapxs[y,x];
+    
+    #ksize = int(((sigmapx-0.8)/0.3 + 1)/0.5 + 1); #sigma = 0.3*((ksize-1)*0.5 - 1) + 0.8 = 0.15x + 0.35. I.e. (sigma - 0.35)/0.15 = ksize
+    ksize = math.ceil((sigmapx-0.35)/0.15);
+    if( ksize % 2 != 1 ):
+        ksize+=1;
+        pass;
+            
+    w=img.shape[1];
+    h=img.shape[0];
+    
+    if( x < 0 or x >= w or y < 0 or y >= h ):
+        print("ERROR requesting X Y outside of img");
+        exit(1);
+        pass;
 
+    #REV: don't bother blurring...
+    if( sigmapx < sigpxcutoff ):
+        return img[y,x];
+
+   
+    samplecirc = True;
+    if( samplecirc ):
+        if( sigmapx < 3 ):
+            return img[y,x];
+        
+        ksize = math.ceil(sigmapx);
+        if( ksize % 2 == 0 ):
+            ksize+=1;
+            pass;
+
+        pass;
+
+    halfk = int(ksize/2);
+    kernL = int(min(halfk, x));
+    kernR = int(min(halfk, w-x-1)); #i.e. if x is 999 and w is 1000, w-x is 1, so there is zero on that side.
+    kernT = int(min(halfk, y));
+    kernB = int(min(halfk, h-y-1));
+    
+    if( samplecirc ):    
+        #REV: just try square rofl.
+        return np.mean( img[ (y-kernT):(y+kernB+1), (x-kernL):(x+kernR+1), :], axis=(0,1) );
+    
+    kern = cv2.getGaussianKernel(ksize, sigmapx); #REV: will give me correct size with cutoff? Better to just sep kernel it with mask? Yea...let's do that LOL
+        
+    #REV: if kern size is 15, halfk is 7... 0 1 2 3 4 5 6 (7) 8 9 10 11 12 13 14 OK
+            
+    kern2d = np.outer(kern, kern);
+    
+    
+    weightsum = np.sum(kern2d[ (halfk-kernT):(halfk+kernB+1), (halfk-kernL):(halfk+kernR+1)]);
+    kern2d3 = np.stack((kern2d,)*3, axis=-1);
+    res = kern2d3[ (halfk-kernT):(halfk+kernB+1), (halfk-kernL):(halfk+kernR+1)] * img[ (y-kernT):(y+kernB+1), (x-kernL):(x+kernR+1), :];
+    return np.sum(res) / weightsum;
+    
+
+#REV: fuck, I have done this before, I swear, but where?
+#REV: y from top...
+def sample_gaussian_wblur( img, x, y, sigmapx ):
+    #ksize=sigmapx*3; #1.4 sig is 7, i.e. about 5x? 15 is 14/2-1 * 0.3 + 0.8 = 2.6, about 6x!?   sig = 0.3*((ksize-1)*0.5-1) + 0.8. SO:  ((sig-0.8)/0.3 + 1)/0.5 + 1 = ksize
+    ksize = ((sigmapx-0.8)/0.3 + 1)/0.5 + 1;
+    if( ksize < sigmapx*3 ):
+        print("WTF? ksize = {} for sigma {}".format(ksize, sigmapx));
+        exit(1);
+        pass;
+    
+    kern = cv2.getGaussianKernel(ksize, sigmapx); #REV: will give me correct size with cutoff? Better to just sep kernel it with mask? Yea...let's do that LOL
+
+    x = int(x);
+    y = int(y);
+    #5, let us say size is 3. Then it goes 5-3, 5+3, i.e. 2 to 8. Center is 5. 2, 3, 4 (5), 6 7 8 Note, it must INCLUDE the higher one!
+    halfk = int((ksize-1)/2); #REV: make it one bigger for safety? This won't deal with edges nicely :( For integrals.
+    ret = cv2.GaussianBlur( img[(y-halfk):(y+halfk+1), (x-halfk):(x+halfk+1), :], ksize=(0,0), sigmaX=sigmapx, sigmaY=0 );
+    
+    return ret[halfk, halfk, :]; #REV: should be a tuple of b, g, r values...
+
+
+from functools import partial
+from itertools import repeat
+from multiprocessing import Pool, freeze_support
+    
+def blur_concentric_bypixel(img, dva_per_px ):
+    #res = img.copy();
+
+    time1=time.time();
+    cx = img.shape[1]/2;
+    cy = img.shape[0]/2;
+    distspx = pixel_dists_from( img, cx, cy );
+    time2=time.time();
+    print(1e3*(time2-time1));
+    distsdva = distspx * dva_per_px;
+    sigsdva = get_sigma_blur( distsdva );
+    #print(sigsdva);
+    #sigspx = sigsdva / dva_per_px;
+    #print(sigspx);
+    
+    #REV: note, we have the nyquist limit here, which is sf/2
+    #REV: right now, I can sample at most 1/dva_per_pix (e.g. 80 pix / dva) * 1/2 = 40 cycles per degree.
+    #REV: Actually, not bad. So, now I will filter anything above that.
+    nyqfreqdva = 0.5 * 1/dva_per_px;
+    nyqsigmadva = sigma_from_sigmaf( nyqfreqdva );
+    #REV: order is intentionally interleaved, because max sigma will be the min freq...
+    minsigma = np.min(sigsdva);
+    maxfreq = sigma_from_sigmaf( minsigma );
+        
+    maxsigma = np.max(sigsdva);
+    minfreq = sigma_from_sigmaf( maxsigma );
+    
+    #print("(Pixels: Nyq: {:4.3f} (sig={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format(nyqfreqpx, nyqsigmapx,  minsigma, maxfreq, maxsigma, minfreq));
+    
+    print("(DVA: NyqSig: {:4.3f} (={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format( nyqsigmadva, nyqfreqdva,  minsigma, maxfreq, maxsigma, minfreq));
+
+    
+    nyqsigmapx = nyqsigmadva/dva_per_px;  # dva / dva/pix = pix * dva/dva
+    minsigmapx = minsigma/dva_per_px;
+    maxsigmapx = maxsigma/dva_per_px;
+    
+    nyqfreqpx = nyqfreqdva*dva_per_px; #REV: freq = 1/dva * dva/px  = 1/px
+    minfreqpx = minfreq*dva_per_px;
+    maxfreqpx = maxfreq*dva_per_px;
+    print("(PIX: NyqSig: {:4.3f} (={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format( nyqsigmapx, nyqfreqpx,  minsigmapx, maxfreqpx, maxsigmapx, minfreqpx));
+
+    #REV: I will just go pixel-by-pixel, compute gaussian, and sample based on that gaussian weight (i.e. mask just around the correct areas down to a cutoff, shift the kernel, and convolve for that pixel
+    #REV: then sum. I can do memory-adjacent, or kernel-adjacent, i.e. should I just go pixel by pixel and re-compute the kernel each time, or go by kernel sizes... ah well. optimize later. What to do about
+    #portions off the side? 
+    #REV: for efficiency, don't blur under the nyquist, or over e.g. 30 deg?
+    #REV: I should also sample logrithmically....
+
+    #REV: or, use spatial frequency space, and do by 0.1 jumps there for example?
+    #REV: or do distance "rings" with logrithmic size?
+    # min: sig=0.063 dva
+    #      e^? = 0.063 -> log(0.063
+    #REV: base is e...
+    
+    maxsigcutoff = 14;
+    sigsdva[ (sigsdva>maxsigcutoff) ] = maxsigcutoff;
+    sigspx = sigsdva/dva_per_px;
+    w=img.shape[1];
+    h=img.shape[0];
+
+    #REV: indices are in x,y order...
+    indices = list( zip(np.indices(img.shape)[0].flatten(), np.indices(img.shape)[1].flatten())); #REV: generator...but OK?
+    indices = indices[0::3];
+    print(len(indices))
+    with Pool(12) as mypool:
+        res = np.array(mypool.map( partial( sample_gaussian, img=img, sigmapxs=sigspx ), indices ));
+        #print(res.shape)
+        #print(res); #REV: this is a list of 3x tuples now...
+        res = res.reshape(img.shape);
+
+    
+    '''
+    #REV: would need to pass x:y matrix unwrapped as arguments...
+    for y in range(w):
+        for x in range(h):
+            #print("Sampling {} {}".format(x,y));
+            sigpx = sigspx[ y, x ];
+            res[y,x] = sample_gaussian( pos=(x,y), img, sigpx );
+            pass;
+        pass;
+    '''
+    return res;
+    
+    
 #REV: problem is if it is non-isotropic, we need to blur using some "weird shaped" masks.
 #REV: i.e. we provide iso-blur masks?
 #REV: other way around -> Assign to each pixel a level of blur. Then, go through and "threshold" "level of blur" pixels within narrow
@@ -247,7 +415,7 @@ def blur_concentric( img, dva_per_px ):
     #      e^? = 0.063 -> log(0.063
     #REV: base is e...
     
-    maxsigcutoff = 16;
+    maxsigcutoff = 8;
     sigsdva[ (sigsdva>maxsigcutoff) ] = maxsigcutoff;
     mybase=2;
     start = math.log(nyqsigmadva,mybase);
@@ -559,8 +727,9 @@ def blur_concentric( img, dva_per_px ):
 #REV: img received as float32, [0,1]
 def blur_it( img, blursig, blurpxrad, scaledown ):
     
-    print(img.shape); #960*2*2...
-    blurimg = blur_concentric( img, scaledown*(95.0/(1920)) );
+    #print(img.shape); #960*2*2...
+    #blurimg = blur_concentric( img, scaledown*(95.0/(1920)) );
+    blurimg = blur_concentric_bypixel( img, scaledown*(95.0/(1920)) );
     #print(np.indices(mask.shape[0:2])); #REV: [0] of this will contain for each pixel the y idx (row#), [1] will contain x idx...
     #print(pixel_dists_from(mask, mask.shape[1]/2, mask.shape[0]/2));
     #mask = cv2.circle( mask, [int(img.shape[1]/2), int(img.shape[0]/2)], blurpxrad, [0,0,0], -1 );
@@ -716,7 +885,7 @@ if( __name__ == "__main__" ):
         print("Blur took {:4.1f} msec".format(1000*elap));
         
         #REV: draw circle and show "normal" too
-        showhere=True;
+        showhere=False;
         if(showhere):
             cv2.imshow("Result", sres);
             cv2.imshow("Orig", snframe);
