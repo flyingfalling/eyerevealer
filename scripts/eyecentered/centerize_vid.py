@@ -267,10 +267,77 @@ def sample_gaussian_wblur( img, x, y, sigmapx ):
     return ret[halfk, halfk, :]; #REV: should be a tuple of b, g, r values...
 
 
+#REV: do it way more efficiently, using some numpy or scikit or some shit, pytorch or etc., tensors.
+#REV: we want:
+#     for each pixel (which is an index, let's say it's just 1d?) -> the pixel has a list of "source indices" and their weights. The weights are based on the kernel size (I can keep those stored).
+#     note many of these will be "convolutional" but most different size...
+
+#REV: was planning to use (py)torch, and do e.g. input=1920x1080(x3) -> weights would be differently weighted projection of the input, with each "slice"
+
+#  I1 -> W11 W12 W13 W14
+#  I2 -> W21 W22 W23 W24
+#  I3 -> W31 W32 W33 W34
+#  I4 -> W41 W42 W43 W44
+#        O1  O2  O3  O4    Where O1 = I1*W11 + I2*W21 + I3*W31 + I4*W41  (i.e. dot product), or, matrix multiply (if one is transposed appropriately) i.e. 1xm * mx1 (rows x cols)
+
+#REV: but for 1920*1080 that is already 1920*1080*(3 channels)*(1 byte) = 24.88 mbyte per image, and we would have image-size weights per pixel, i.e. roughly square it. Still 12899.45 GIGABYTES, i.e. 13TB
+#REV: just to hold the weights matrix. Haha. So, I need it sparse. Otherwise, linear layers are what I want!
+
+#REV: even at 960x540, if I use sparse, and we use a sparse matrix of e.g. max 1/6 the size for the largest gaussian, that is still 960*540*(960/6*540/6) = 7.47 GB...fuck. This works better if I can
+#REV: do the image in "chunks" based roughly on the size, remembering where each pixel goes afterwards...only the outermost will need to have such large weights. Ideally I should just subsample...
+#REV: blurring is stupid...? Should I just compute infinitely many pyramid levels and use those? They are not decimated each time though... I should really blur it first so as to not lose info?
+#REV: but...I will lose info. By definition. The light will...miss the receptors. Fuck it. Just subsample at some very local area, i.e. skip appropriate amounts? Should I sample with gaussian weights
+#REV: or simply sample fewer further out (all with weight 1?). I.e. always sample middle pixel? Or compute it, then randomly sample indices to sample from to make it less "predictable"? Or distribute them in some type of balanced but poisson way so it is not absolutely uniform? Move with gaussian?
+#REV: OK...let's just try embedding, but let us do it with some sub-sampling?
+
+#REV: each pixel has an "index" of the kernel to use (compute just unique values). Those kernels are pre-computed and stored in memory as ksize for each (not so much space)...hopefully not many uniques.
+#REV: I know that each is also centered at itself (so no issue there). The problem is that I don't want to do so many samplings/multiplications? I should be able to "sample" weights and target indices
+#REV: in some way...using a mask? The problem is that each will still access each...ugh. I need to subsample in some natural way. Sample same number of receptors, just in less or more area/space?
+#REV: eventually they will all be inside the same pixel (in which case, just sum their weights). We may get artifacts from pixel boundaries...but hopefully very small. Define distances not in terms of pixel offsets, but in terms of evenly space helixal structure? (hexa structure?). Or, octo structure? Just go in 8 directions, and the "amount" to go will be based on gaussian? I.e. much fewer further out...may get a "lucky pixel" though? Many falling in same area will catch...what? Doesn't matter... Let us say that we want to sample weights in the 8 directions with 20 samples in each direction, i.e. 20*8 = 160 samples.
+#"distance" of those 20 should be determined by probability cumulatives, i.e. cdf of normal. So, each of the 5%iles. Note we start at center of pixel, so 0.5 is the edge of it in any direction (although...
+# they are fucking square! So diagnals are fucked lol. Also, we won't get a nice circular sampling...it will only go in 8 directions. I don't like that. Should use some kind of spring thing to balance it.
+
+def create_torch_nn():
+    pass;
+
+
+def mask_from_kern2d(kern):
+    #kern is a list of (x, y, w)...
+    kmat = np.array(kern);
+    if( kmat.shape[1] != 3 ):
+        print("Erro shape {}".format(kmat.shape));
+        exit(1);
+        pass;
+
+    xs = kmat[:,0];
+    ys = kmat[:,1];
+    ws = kmat[:,2];
+    
+    kxmin = np.min(xs);
+    kxmax = np.max(xs);
+    kymin = np.min(ys);
+    kymax = np.max(ys);
+    
+    #print(kmat);
+    #print(xs);
+    xspan = int(kxmax - kxmin)+1;
+    yspan = int(kymax - kymin)+1;
+    
+    mask = np.zeros( (yspan, xspan), dtype=float );
+    for i in kern:
+        if( i[0] < kxmin or i[1] < kymin ):
+            print("Err");
+            exit(1);
+            pass;
+        #print("Accessing {} {} ({} {})".format(i[1], i[0], kxmin, kymin));
+        mask[ int(i[1]-kymin), int(i[0]-kxmin) ] = i[2];
+        pass;
+    return mask;
+
 from functools import partial
 from itertools import repeat
 from multiprocessing import Pool, freeze_support
-    
+
 def blur_concentric_bypixel(img, dva_per_px ):
     #res = img.copy();
 
@@ -353,7 +420,119 @@ def blur_concentric_bypixel(img, dva_per_px ):
     '''
     return res;
     
+def samples_from_2d_sym_gauss( N, sig ):
+    samps = np.abs(np.random.normal( loc=0, scale=sig, size=N ));
+    angles = np.pi * np.random.uniform(0, 2, size=N);
+    xs = np.sqrt(samps) * np.cos(angles)
+    ys = np.sqrt(samps) * np.sin(angles)
+    return xs, ys
+
+#REV: basically returns pixel index values and weights in case multiple fall inside. Note, pixels are square...
+def samples_into_indices( N, sig ):
+    xs, ys = samples_from_2d_sym_gauss(N, sig);
+    #print(xs, np.std(xs))
+    #print(ys, np.std(ys));
+    #REV: compress, and int-ize.
+    #REV: mult by 2 so that it is not 0.5, but 1 that we are dealing with... i.e. +1 to +3 is +1? Will get 2.9 to 2. Then when I divide again, I div 2 and add 0.5 and then int it? Or just make them
+    #REV: all odd numbers! Should be 0, 2, 4. Note, up to 1.49999 it should be 1, then 1.5 should be 2.0. Mult 2 will make it 3. So, yea, just add 1? Mult 2, add 1. I.e. 0.5*2 + 1 = 2. 1.2*2 + 1 = 3.4 (3). 1.5*2+1 = 4 (4 -> 2)
+    xs2 = xs*2 + 1*np.sign(xs);
+    ys2 = ys*2 + 1*np.sign(ys);
+    xs2 = np.fix(np.fix(xs2) / 2); #int division...
+    ys2 = np.fix(np.fix(ys2) / 2); #REV: huh wtf?
     
+    #print(xs2);
+    #print(ys2);
+    #xys = np.array(xs2, ys2);
+    xys = [ (x, y) for x, y in zip(xs2,ys2) ];
+    xys, ws = np.unique( xys, axis=0, return_counts=True );
+    #print(xys)
+    #print( ws);
+    ws = ws / np.sum(ws);
+    
+    kern = [ (v[0], v[1], w) for v, w in zip( xys, ws ) ];
+    return kern;
+
+
+def create_gauss_subsample_kerns(sigmapxs, samps=100):
+    
+    #sample = np.vectorize( partial( sample_into_indices, N=samps ) );
+    #kerns = sample(sigmapxs);
+    
+    #REV: oh fuck this is the same as a gaussian convolution kernel type thing, but different for each location! note SIZE could be same, but actual spread will be larger or smaller...
+    kerns=[];
+    uniques = np.unique(sigmapxs);
+    kernidxs = np.zeros( sigmapxs.shape, dtype=np.uint );
+    #print(sigmapxs.shape);    
+    for i, u in enumerate(uniques):
+        #print(u);
+        #print(np.asarray(sigmapxs==u).nonzero());
+        #print(np.where(sigmapxs==u));
+        kernidxs[ np.where(sigmapxs == u) ] = i;
+        
+        #REV; fuck this can't work because of edge conditions. Have to handle it in real time while iterating image ;( Or build it into independent kernels for each...
+        k = samples_into_indices(N=samps, sig=u);
+        kerns.append(k);
+        pass;
+    
+    return kernidxs, kerns;
+
+
+def apply_kernel(idx, img, kernidxs, kerns):
+    x=idx[1];
+    y=idx[0];
+    #print("Apply for {} {}".format(x,y));
+    kern=kerns[ kernidxs[y,x] ];
+    #print(kern);
+    sumw=0;
+    res=np.zeros(img[y,x].shape);
+    #print(res);
+    
+    
+    #print(len(kern));
+    for (dx, dy, w) in kern:
+        #print(dx,dy,w);
+        tx = int(x+dx);
+        ty = int(y+dy);
+        
+        if( tx < 0 or tx >= img.shape[1] or ty < 0 or ty >= img.shape[0] ):
+            #print("Outside {} {}!".format(tx, ty));
+            continue;
+        #print(ty, tx); #REV: ok, accessing img is the issue? Is it copying it wtf?
+        #print(img[ty,tx]);
+        res += w * img[ty,tx];
+        sumw += w;
+        pass;
+    
+    #print("Finish");
+    #print(m);
+    #m = mask_from_kern2d( kern );
+    #m/=np.max(m);
+    #cv2.imshow("mask", m);
+    #cv2.waitKey(0);
+
+    return res / sumw;
+
+
+#REV: 
+    
+def blur_concentric_gauss_subsample(img, kernidxs, kerns):
+    #REV; vectorize application? or multithread it? Fuck it?
+    indices = list( zip(np.indices(img.shape)[0].flatten(), np.indices(img.shape)[1].flatten())); #REV: generator...but OK?
+    indices = indices[0::3];
+    #print(indices);
+    print("GO");
+    #REV: implicit argument needs to be the first one.
+    with Pool(12) as mypool:
+        res = np.array(mypool.map( partial( apply_kernel, img=img, kernidxs=kernidxs, kerns=kerns), indices ) );
+        pass;
+    #res = np.map( partial( apply_kernel, img=img, kernidxs=kernidxs, kerns=kerns), indices );
+    #res = np.vectorize( partial( apply_kernel, img=img, kernidxs=kernidxs, kerns=kerns) )( indices );
+    
+    res = res.reshape(img.shape);
+    
+    return res;
+
+
 #REV: problem is if it is non-isotropic, we need to blur using some "weird shaped" masks.
 #REV: i.e. we provide iso-blur masks?
 #REV: other way around -> Assign to each pixel a level of blur. Then, go through and "threshold" "level of blur" pixels within narrow
@@ -724,12 +903,79 @@ def blur_concentric( img, dva_per_px ):
 #Tobii3 glasses :
 #   view (horizontal and vertical) 	95 deg. horizontal / 63 deg. vertical 
 
+def create_kerns( img, dva_per_px ):
+    #dva_per_pix = scaledown*(95.0/(1920));
+    time1=time.time();
+    cx = img.shape[1]/2;
+    cy = img.shape[0]/2;
+    distspx = pixel_dists_from( img, cx, cy );
+    time2=time.time();
+    print(1e3*(time2-time1));
+    distsdva = distspx * dva_per_px;
+    sigsdva = get_sigma_blur( distsdva );
+    #print(sigsdva);
+    #sigspx = sigsdva / dva_per_px;
+    #print(sigspx);
+    
+    #REV: note, we have the nyquist limit here, which is sf/2
+    #REV: right now, I can sample at most 1/dva_per_pix (e.g. 80 pix / dva) * 1/2 = 40 cycles per degree.
+    #REV: Actually, not bad. So, now I will filter anything above that.
+    nyqfreqdva = 0.5 * 1/dva_per_px;
+    nyqsigmadva = sigma_from_sigmaf( nyqfreqdva );
+    #REV: order is intentionally interleaved, because max sigma will be the min freq...
+    minsigma = np.min(sigsdva);
+    maxfreq = sigma_from_sigmaf( minsigma );
+        
+    maxsigma = np.max(sigsdva);
+    minfreq = sigma_from_sigmaf( maxsigma );
+    
+    #print("(Pixels: Nyq: {:4.3f} (sig={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format(nyqfreqpx, nyqsigmapx,  minsigma, maxfreq, maxsigma, minfreq));
+    
+    print("(DVA: NyqSig: {:4.3f} (={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format( nyqsigmadva, nyqfreqdva,  minsigma, maxfreq, maxsigma, minfreq));
+
+    
+    nyqsigmapx = nyqsigmadva/dva_per_px;  # dva / dva/pix = pix * dva/dva
+    minsigmapx = minsigma/dva_per_px;
+    maxsigmapx = maxsigma/dva_per_px;
+    
+    nyqfreqpx = nyqfreqdva*dva_per_px; #REV: freq = 1/dva * dva/px  = 1/px
+    minfreqpx = minfreq*dva_per_px;
+    maxfreqpx = maxfreq*dva_per_px;
+    print("(PIX: NyqSig: {:4.3f} (={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format( nyqsigmapx, nyqfreqpx,  minsigmapx, maxfreqpx, maxsigmapx, minfreqpx));
+
+    #REV: I will just go pixel-by-pixel, compute gaussian, and sample based on that gaussian weight (i.e. mask just around the correct areas down to a cutoff, shift the kernel, and convolve for that pixel
+    #REV: then sum. I can do memory-adjacent, or kernel-adjacent, i.e. should I just go pixel by pixel and re-compute the kernel each time, or go by kernel sizes... ah well. optimize later. What to do about
+    #portions off the side? 
+    #REV: for efficiency, don't blur under the nyquist, or over e.g. 30 deg?
+    #REV: I should also sample logrithmically....
+
+    #REV: or, use spatial frequency space, and do by 0.1 jumps there for example?
+    #REV: or do distance "rings" with logrithmic size?
+    # min: sig=0.063 dva
+    #      e^? = 0.063 -> log(0.063
+    #REV: base is e...
+    
+    maxsigcutoff = 16;
+    sigsdva[ (sigsdva>maxsigcutoff) ] = maxsigcutoff;
+    sigspx = sigsdva/dva_per_px;
+    
+    kernidxs, kerns = create_gauss_subsample_kerns( sigspx );
+    
+    return kernidxs, kerns;
+    
+    
+    
+
+def blur_it_kern( img, kernidxs, kerns ):
+    blurimg = blur_concentric_gauss_subsample(img, kernidxs, kerns);
+    return blurimg;
+
 #REV: img received as float32, [0,1]
 def blur_it( img, blursig, blurpxrad, scaledown ):
     
     #print(img.shape); #960*2*2...
     #blurimg = blur_concentric( img, scaledown*(95.0/(1920)) );
-    blurimg = blur_concentric_bypixel( img, scaledown*(95.0/(1920)) );
+    blurimg = blur_concentric_bypixel( img, scaledown*(95.0/(1920)) )
     #print(np.indices(mask.shape[0:2])); #REV: [0] of this will contain for each pixel the y idx (row#), [1] will contain x idx...
     #print(pixel_dists_from(mask, mask.shape[1]/2, mask.shape[0]/2));
     #mask = cv2.circle( mask, [int(img.shape[1]/2), int(img.shape[0]/2)], blurpxrad, [0,0,0], -1 );
@@ -798,6 +1044,9 @@ if( __name__ == "__main__" ):
     
     centeyeposdf = pd.DataFrame( columns=["FRIDX", "CX", "CY"] );
     eyeposoutfname = os.path.join( odir, "cent_eyepos.csv");
+
+    
+    kerns=None;
     
     while( ret ):
         #line = gazefh.readline();
@@ -865,7 +1114,7 @@ if( __name__ == "__main__" ):
         
         print("Gaze ({},{})".format(gzx,gzy));
         
-        scaledown=4;
+        scaledown=8;
         
         if( scaledown != 1 ):
             suncentres = cv2.resize( uncentres, (int(res.shape[1]/scaledown), int(res.shape[0]/scaledown)) );
@@ -877,10 +1126,17 @@ if( __name__ == "__main__" ):
             sres = res;
             snframe = nframe;
             pass;
-
+        
         startt = time.time();
+
+        if( kerns is None ):
+            dva_per_pix = scaledown * (95.0/(1920)); #REV: hardcoded values...for tobii3
+            kernidxs, kerns = create_kerns( sres, dva_per_pix );
+            pass;
+        
         #REV: this includes the scaledown!
-        sresb = blur_it( sres, 50, 100, scaledown );
+        #sresb = blur_it( sres, 50, 100, scaledown );
+        sresb = blur_it_kern( sres, kernidxs, kerns );
         elap = time.time()-startt;
         print("Blur took {:4.1f} msec".format(1000*elap));
         
