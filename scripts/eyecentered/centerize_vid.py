@@ -10,16 +10,21 @@ import time;
 def embed_edge_gauss_blur_create( inimg255, cxpx, cypx, bgwid, bghei, bgrgb255, blurlimpx, blursigmult=1/3.0 ):
     bgimg = np.full( (bghei, bgwid, 3), bgrgb255, dtype=np.uint8 );
     return embed_edge_gauss_blur( inimg255, cxpx, cypx, bgimg, blurlimpx, blursigmult );
-    
-def embed_edge_gauss_blur( inimg255, cxpx, cypx, bgimg255, blurlimpx, blursigmult=1/3.0 ):
-    sigmax=blurlimpx*blursigmult;
 
+def create_maskblurred_3chan_embedder( inimg255, blurlimpx, blursigmult=1/3 ):
+    sigmax=blurlimpx*blursigmult;
+    
     mask = np.zeros( inimg255.shape, dtype=np.uint8 );
     mask[ int(blurlimpx):int(mask.shape[0]-blurlimpx), int(blurlimpx):int(mask.shape[1]-blurlimpx), : ] = 255;
     
     mask_blurred  = cv2.GaussianBlur( mask, ksize=(0,0), sigmaX=sigmax, sigmaY=0, borderType=cv2.BORDER_CONSTANT );
     mask_blurred_3chan = mask_blurred/255.0; #cv2.cvtColor(mask_blurred, cv2.COLOR_GRAY2BGR).astype('float') / 255.0;
+    return mask_blurred_3chan;
 
+def embed_edge_gauss_blur( inimg255, cxpx, cypx, bgimg255, mask_blurred_3chan ):
+    etime1=time.time();
+    
+    print("Creating masks: {}".format(time.time()-etime1));
     #cv2.imshow("Small Mask", mask_blurred_3chan );
     #cv2.waitKey(0);
     
@@ -89,6 +94,9 @@ def embed_edge_gauss_blur( inimg255, cxpx, cypx, bgimg255, blurlimpx, blursigmul
     
     #print(res[ top:bot, left:right, : ].shape);
     res[ top:bot, left:right, : ] = (inimg[itop:ibot,ileft:iright,:] * mask_blurred_3chan[itop:ibot,ileft:iright,:])  + (res[ top:bot, left:right, : ] * (1.0 - mask_blurred_3chan[itop:ibot,ileft:iright,:]));
+
+    etime2=time.time();
+    print("Embedding: {} msec".format(1000*(etime2-etime1)));
     return res;
 
 
@@ -159,11 +167,24 @@ def sigma_from_freq_modul( targf, targmodul ):
 #REV: could do differnet for the 4 quadrants... (mirror too?) but...
 def get_sigma_blur( ecc_dva ):
     fovea_0_sf = 20.0;
-    base=0.833;
-    mult = base ** ecc_dva; #REV: this is proportion of the max I get. I could convert to stuff, but I'll just do directly...
-    sf = mult * fovea_0_sf;
-    freqmod=0.5;
-    dvasig, _ = sigma_from_freq_modul( sf, freqmod );
+    method='linear';
+    if( method == 'linear' ):
+        slope_per_dva=0.2;
+        dpc = 1/fovea_0_sf + slope_per_dva * ecc_dva; #REV: this is how many cycles per degree... I want to find the sigma value in frequency space that gives this some value, i.e. 0.6? At sigma,
+        cpd = 1/dpc;
+        # This value will be 0.6, i.e. if sigma=cpd, it will pass 0.6 power (?) of it. I want to pass more of it...let's say 0.9
+        freqmod=0.75;
+        dvasig, _ = sigma_from_freq_modul( cpd, freqmod );
+        print(dvasig);
+        pass;
+    else:
+        base=0.833;
+        mult = base ** ecc_dva; #REV: this is proportion of the max I get. I could convert to stuff, but I'll just do directly...
+        sf = mult * fovea_0_sf;
+        freqmod=0.75;
+        dvasig, _ = sigma_from_freq_modul( sf, freqmod );
+        pass;
+    
     return dvasig;
 
 
@@ -453,8 +474,32 @@ def samples_into_indices( N, sig ):
     return kern;
 
 
+#REV: I could make special kernels (dispensations) for edge conditions? Need to remember "center" for each?
+#REV: or just do online?
+def create_gauss_mask_kerns(sigmapxs):
+    kerns=[];
+    uniques = np.unique(sigmapxs);
+    kernidxs = np.zeros( sigmapxs.shape, dtype=np.uint );
+    for i, u in enumerate(uniques):
+        kernidxs[ np.where(sigmapxs == u) ] = i;
+        if( u <= 0.3 ):
+            k = np.ones((1,1), dtype=float);
+            pass;
+        else:
+            sigmapx = u;
+            ksize = int(((sigmapx-0.8)/0.3 + 1)/0.5 + 1);
+            if( ksize % 2 != 1 ):
+                ksize+=1;
+                pass;
+            k = cv2.getGaussianKernel(ksize, sigmapx); #REV: will give me correct size with cutoff? Better to just sep kernel it with mask? Yea...let's do that LOL
+            k = np.outer(k,k);
+            pass;
+        k = np.stack((k,)*3, axis=-1); #REV make 3 channels...
+        kerns.append(k);
+        pass;
+    return kernidxs, kerns;
+
 def create_gauss_subsample_kerns(sigmapxs, samps=100):
-    
     #sample = np.vectorize( partial( sample_into_indices, N=samps ) );
     #kerns = sample(sigmapxs);
     
@@ -464,9 +509,6 @@ def create_gauss_subsample_kerns(sigmapxs, samps=100):
     kernidxs = np.zeros( sigmapxs.shape, dtype=np.uint );
     #print(sigmapxs.shape);    
     for i, u in enumerate(uniques):
-        #print(u);
-        #print(np.asarray(sigmapxs==u).nonzero());
-        #print(np.where(sigmapxs==u));
         kernidxs[ np.where(sigmapxs == u) ] = i;
         
         #REV; fuck this can't work because of edge conditions. Have to handle it in real time while iterating image ;( Or build it into independent kernels for each...
@@ -475,6 +517,58 @@ def create_gauss_subsample_kerns(sigmapxs, samps=100):
         pass;
     
     return kernidxs, kerns;
+
+
+def apply_mask_kernel2(idx, img, kernidxs, kerns):
+    x=idx[1];
+    y=idx[0];
+    w=img.shape[1];
+    h=img.shape[0];
+    
+    kern2d3=kerns[ kernidxs[y,x] ];
+    ksize=kern2d3.shape[0];
+    
+    halfk = int(ksize/2);
+    kernL = int(min(halfk, x));
+    kernR = int(min(halfk, w-x-1)); #i.e. if x is 999 and w is 1000, w-x is 1, so there is zero on that side.
+    kernT = int(min(halfk, y));
+    kernB = int(min(halfk, h-y-1));
+    
+    weightsum = np.sum(kern2d3[ (halfk-kernT):(halfk+kernB+1), (halfk-kernL):(halfk+kernR+1)], axis=(0,1));
+    res = kern2d3[ (halfk-kernT):(halfk+kernB+1), (halfk-kernL):(halfk+kernR+1)] * img[ (y-kernT):(y+kernB+1), (x-kernL):(x+kernR+1), :];
+    return np.sum(res, axis=(0,1)) / weightsum;
+
+def apply_mask_kernel(idx, img, kernidxs, kerns):
+    x=idx[1];
+    y=idx[0];
+    w=img.shape[1];
+    h=img.shape[0];
+
+    sigmapx = kernidxs[y,x];
+
+    #REV: don't bother blurring < 0.3 px...
+    if( sigmapx < 0.3 ):
+        return img[y,x];
+    
+    
+    ksize = int(((sigmapx-0.8)/0.3 + 1)/0.5 + 1);
+    if( ksize % 2 != 1 ):
+        ksize+=1;
+        pass;
+    
+    
+    halfk = int(ksize/2);
+    kernL = int(min(halfk, x));
+    kernR = int(min(halfk, w-x-1)); #i.e. if x is 999 and w is 1000, w-x is 1, so there is zero on that side.
+    kernT = int(min(halfk, y));
+    kernB = int(min(halfk, h-y-1));
+    
+    tmpblurred = cv2.GaussianBlur( img[ (y-kernT):(y+kernB+1), (x-kernL):(x+kernR+1), :], ksize=(0,0), sigmaX=sigmapx, sigmaY=0 );
+    #weightsum = np.sum(kern2d3[ (halfk-kernT):(halfk+kernB+1), (halfk-kernL):(halfk+kernR+1)]);
+    #res = kern2d3[ (halfk-kernT):(halfk+kernB+1), (halfk-kernL):(halfk+kernR+1)] * img[ (y-kernT):(y+kernB+1), (x-kernL):(x+kernR+1), :];
+    res = tmpblurred[ kernT, kernL ];
+    #print(res);
+    return res;
 
 
 def apply_kernel(idx, img, kernidxs, kerns):
@@ -513,8 +607,34 @@ def apply_kernel(idx, img, kernidxs, kerns):
     return res / sumw;
 
 
-#REV: 
+def blur_concentric_gauss_mask(img, kernidxs, kerns):
+    #REV; vectorize application? or multithread it? Fuck it?
+    indices = list( zip(np.indices(img.shape)[0].flatten(), np.indices(img.shape)[1].flatten())); #REV: generator...but OK?
+    indices = indices[0::3];
+    #print(indices);
+    print("GO");
+    #REV: implicit argument needs to be the first one.
+    res=[];
+    '''
+    for idx in indices:
+        print("For {}".format(idx));
+        r = apply_mask_kernel(idx, img=img, kernidxs=kernidxs, kerns=kerns );
+        #print(r);
+        res.append(r);
+        pass;
+    '''
+    with Pool(8) as mypool:
+        #res = np.array(mypool.map( partial( apply_mask_kernel2, img=img, kernidxs=kernidxs, kerns=kerns), indices ) );
+        res = np.array(mypool.map( partial( apply_mask_kernel, img=img, kernidxs=kernidxs, kerns=kerns), indices ) );
+        pass;
     
+    #res = np.map( partial( apply_kernel, img=img, kernidxs=kernidxs, kerns=kerns), indices );
+    #res = np.vectorize( partial( apply_kernel, img=img, kernidxs=kernidxs, kerns=kerns) )( indices );
+    
+    res = res.reshape(img.shape);
+    
+    return res;
+ 
 def blur_concentric_gauss_subsample(img, kernidxs, kerns):
     #REV; vectorize application? or multithread it? Fuck it?
     indices = list( zip(np.indices(img.shape)[0].flatten(), np.indices(img.shape)[1].flatten())); #REV: generator...but OK?
@@ -532,6 +652,25 @@ def blur_concentric_gauss_subsample(img, kernidxs, kerns):
     
     return res;
 
+
+
+#REV: this does it but with full-image blurs... leave edge up to opencv...
+def blur_concentric_full( img, kernidxs, kerns ):
+    #REV: kerns is empty
+    uniques = np.unique(kernidxs);
+    res = img.copy();
+    time1=time.time();
+    print(len(uniques));
+    for i, sigpx in enumerate(uniques):
+        #REV: blur img at that level...
+        blurred  = cv2.GaussianBlur( img, ksize=(0,0), sigmaX=sigpx, sigmaY=0 );
+        locs = np.where(kernidxs==sigpx);
+        res[ locs ] = blurred[ locs ];
+        pass;
+
+    time2=time.time();
+    print("Real Blur took: {} sec".format(1e3*(time2-time1)));
+    return res;
 
 #REV: problem is if it is non-isotropic, we need to blur using some "weird shaped" masks.
 #REV: i.e. we provide iso-blur masks?
@@ -594,7 +733,7 @@ def blur_concentric( img, dva_per_px ):
     #      e^? = 0.063 -> log(0.063
     #REV: base is e...
     
-    maxsigcutoff = 8;
+    maxsigcutoff = 4;
     sigsdva[ (sigsdva>maxsigcutoff) ] = maxsigcutoff;
     mybase=2;
     start = math.log(nyqsigmadva,mybase);
@@ -912,7 +1051,10 @@ def create_kerns( img, dva_per_px ):
     time2=time.time();
     print(1e3*(time2-time1));
     distsdva = distspx * dva_per_px;
+
+    #REV: different method...
     sigsdva = get_sigma_blur( distsdva );
+    
     #print(sigsdva);
     #sigspx = sigsdva / dva_per_px;
     #print(sigspx);
@@ -942,7 +1084,7 @@ def create_kerns( img, dva_per_px ):
     minfreqpx = minfreq*dva_per_px;
     maxfreqpx = maxfreq*dva_per_px;
     print("(PIX: NyqSig: {:4.3f} (={:4.3f})   MinSig: {:4.3f} (={:4.3f})    MaxSig: {:4.3f} (={:4.3f})".format( nyqsigmapx, nyqfreqpx,  minsigmapx, maxfreqpx, maxsigmapx, minfreqpx));
-
+    
     #REV: I will just go pixel-by-pixel, compute gaussian, and sample based on that gaussian weight (i.e. mask just around the correct areas down to a cutoff, shift the kernel, and convolve for that pixel
     #REV: then sum. I can do memory-adjacent, or kernel-adjacent, i.e. should I just go pixel by pixel and re-compute the kernel each time, or go by kernel sizes... ah well. optimize later. What to do about
     #portions off the side? 
@@ -955,19 +1097,39 @@ def create_kerns( img, dva_per_px ):
     #      e^? = 0.063 -> log(0.063
     #REV: base is e...
     
-    maxsigcutoff = 16;
+    maxsigcutoff = 8; #REV: corresponds to... 1/(2*pi*10) (1/(2*pi*10)) = 0.0159 dva sigma (SD) of frequency response... I.e. at 1 sd, i.e. exp( -(sigma*sigma) / (2*sigma*sigma) ) = exp(-0.5) = 0.606530
+    #REV: i.e. 0.0159 ... wait what. If it is 10dva width (sigma) that corresponds to...what? Frequency response of that KERNEL (filter), i.e. it will pass things of < 0.0159 dva? Let's say it
+    #REV: corresponds to SPATIAL FREQUENCY. (FREQUENCY response, i.e. wavelength will be inverse of frequency...). -> 62.89 DVA PER CYCLE!
+    #REV: problem, it must increase by 0.2 deg to maintain recognition in periphery. If e.g. an object is 1/20 of a degree in the middle, each degree it must get 0.2deg larger (NOT SCALE).
+    #REV: i.e. up to? some minimum. Fuck it. So, if at middle it is 1/20, (0.05 deg), at 5 deg it must be 1deg large, at 10, it must be 2deg large, at 15 3 deg, at 20, 4 deg,
+    #REV: so...I should drop off linearly (in terms of blur?). 1/(1/x) is just linear lol. What is "acuity" -> it is resolvable CPD. How can I remove resolvable CPD -> blur it to remove that frequency
+    #REV: response. 20 in middle (1/20 deg per cycle), to 1 deg/cycle (1cyc/deg). at 45 deg it must be 0.2*45 = 9 degrees... so my blur sigma should at 45 be roughly that.
+    #REV: lets just use 1/20 (at center) to 0.25 at 1 deg to 1.05 at 5 deg to etc.9.05 at 45 deg...for something 9 deg to be resolvable, (i.e. 1/9 cpd? ish? Or 1/18?). That means
+    #REV; 1/9 cpd (note 20 cpd takes 1/20 of a degree). 1/9 cpd takes 9 degrees. 9 degrees means that a blur of (assuming nyquist frequency is very small for image) -> I must leave 1/9 = 0.1111 frequency
+    #REV: response...is 1.432 CPD!! (note the other one I start in center at 8 CPD, then do 4 2 1 1/2 1/4...fine.
     sigsdva[ (sigsdva>maxsigcutoff) ] = maxsigcutoff;
     sigspx = sigsdva/dva_per_px;
     
-    kernidxs, kerns = create_gauss_subsample_kerns( sigspx );
+    #kernidxs, kerns = create_gauss_subsample_kerns( sigspx );
+    
+    #kernidxs, kerns = create_gauss_mask_kerns( sigspx );
+    
+    #kernidxs, kerns = create_gauss_kerns( sigspx ); #REV: this just creates sigpx for each...i.e. it is literally just the
+    kernidxs = sigspx;
+    kerns = None;
     
     return kernidxs, kerns;
     
-    
-    
+def blur_it_full( img, kernidxs, kerns ):
+    blurimg = blur_concentric_full(img, kernidxs, kerns);
+    return blurimg;
 
 def blur_it_kern( img, kernidxs, kerns ):
     blurimg = blur_concentric_gauss_subsample(img, kernidxs, kerns);
+    return blurimg;
+
+def blur_it_kern_mask( img, kernidxs, kerns ):
+    blurimg = blur_concentric_gauss_mask(img, kernidxs, kerns);
     return blurimg;
 
 #REV: img received as float32, [0,1]
@@ -1047,7 +1209,9 @@ if( __name__ == "__main__" ):
 
     
     kerns=None;
-    
+
+    mask_3d = create_maskblurred_3chan_embedder( frame,  blursizepx );
+                                                 
     while( ret ):
         #line = gazefh.readline();
         #if not line:
@@ -1076,6 +1240,7 @@ if( __name__ == "__main__" ):
         
         nframe = frame.copy();
         
+        startt = time.time();
         
         #REV: tobii3 gaze2 references is from BOTTOM LEFT of frame. We need to "offset" frame by gaze amount inversed.
         #gzx = None;
@@ -1100,21 +1265,21 @@ if( __name__ == "__main__" ):
             print(imgmeanpx);
             
             bgimg = np.full( (bghei,bgwid,3), imgmeanpx, dtype=np.uint8 );
-            res = embed_edge_gauss_blur( frame, bg_gzx, bg_gzy, bgimg, blursizepx );
+            res = embed_edge_gauss_blur( frame, bg_gzx, bg_gzy, bgimg, mask_3d );
             
             cx = bgimg.shape[1]/2;
             cy = bgimg.shape[0]/2;
-            uncentres = embed_edge_gauss_blur( frame, cx, cy, bgimg, blursizepx );
+            uncentres = embed_edge_gauss_blur( frame, cx, cy, bgimg, mask_3d );
             
             #REV: draw circle...
             mygzx = int(gzx);
             mygzy = int(frame.shape[0]-gzy);
-            nframe = cv2.circle( nframe, [mygzx, mygzy], 60, [220,50,50], 15 );
+            cv2.circle( nframe, [mygzx, mygzy], 60, [220,50,50], 15 );
             pass;
         
         print("Gaze ({},{})".format(gzx,gzy));
         
-        scaledown=8;
+        scaledown=6;
         
         if( scaledown != 1 ):
             suncentres = cv2.resize( uncentres, (int(res.shape[1]/scaledown), int(res.shape[0]/scaledown)) );
@@ -1127,21 +1292,26 @@ if( __name__ == "__main__" ):
             snframe = nframe;
             pass;
         
+        elap = time.time()-startt;
+        print("Pre-blur took {:4.1f} msec".format(1000*elap));
+        
         startt = time.time();
 
         if( kerns is None ):
             dva_per_pix = scaledown * (95.0/(1920)); #REV: hardcoded values...for tobii3
-            kernidxs, kerns = create_kerns( sres, dva_per_pix );
+            kernidxs, kerns = create_kerns(sres, dva_per_pix);
             pass;
         
         #REV: this includes the scaledown!
         #sresb = blur_it( sres, 50, 100, scaledown );
-        sresb = blur_it_kern( sres, kernidxs, kerns );
+        sresb = blur_it_kern_mask( sres, kernidxs, kerns );
+        #sresb = blur_it_full( sres, kernidxs, kerns );
+        
         elap = time.time()-startt;
         print("Blur took {:4.1f} msec".format(1000*elap));
         
         #REV: draw circle and show "normal" too
-        showhere=False;
+        showhere=True;
         if(showhere):
             cv2.imshow("Result", sres);
             cv2.imshow("Orig", snframe);
@@ -1176,7 +1346,7 @@ if( __name__ == "__main__" ):
         blurwriter.write( (sresb*255).astype(np.uint8) );
         centwriter.write( (sres*255).astype(np.uint8) );
         uncentwriter.write( (suncentres*255).astype(np.uint8) );
-        origwriter.write( (snframe*255).astype(np.uint8) );
+        origwriter.write( (snframe).astype(np.uint8) ); #REV: don't *255!
                 
         ret, frame = cap.read();
         fridx+=1;
