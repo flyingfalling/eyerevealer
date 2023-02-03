@@ -1,5 +1,7 @@
 ##REV: centerize video based on eye position (i.e. make retinotopic, and apply peripheral blur, etc.)
 
+#REV: OLD (ish) version -- newest should be in razer 2022 computer!
+
 import sys
 import cv2
 import numpy as np
