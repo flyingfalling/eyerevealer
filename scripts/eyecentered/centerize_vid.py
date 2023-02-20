@@ -1156,7 +1156,10 @@ def blur_it( img, blursig, blurpxrad, scaledown ):
 if( __name__ == "__main__" ):
     invidfile = sys.argv[1];
     ingazefile = sys.argv[2];
-
+    #orig_dva_per_pix = sys.argv[3]; #0.0494792 for tobii3  0.0427083 for tobii2 (assuming size is 1920?)
+    camtype = sys.argv[3];
+    
+    
     #REV: use mean luminance in the image? Of each channel?
     #bgpxval=60;
     #REV: use mean frame luminance?
@@ -1176,7 +1179,21 @@ if( __name__ == "__main__" ):
         pass;
     
     wid, hei, fps, nframes, dursec = get_cap_info( cap );
-    
+
+    if( wid != 1920):
+        print("WARNING: input video wid is not expected raw (1920 wid) for tobii");
+        pass;
+    if( camtype == 'tobii2' ):
+        orig_dva_per_pix = wid/82;
+        pass;
+    elif( camtype == 'tobii3' ):
+        orig_dva_per_pix = wid/95;
+        pass;
+    else:
+        print("Error, unrecognized cam type [{}] (should be tobii2 or tobii3 for now)".format(camtype));
+        exit(1);
+        pass;
+        
     bgwid = wid*2;
     bghei = hei*2;
     bgpxval=[0,0,0];
@@ -1296,9 +1313,9 @@ if( __name__ == "__main__" ):
         print("Pre-blur took {:4.1f} msec".format(1000*elap));
         
         startt = time.time();
-
+        
         if( kerns is None ):
-            dva_per_pix = scaledown * (95.0/(1920)); #REV: hardcoded values...for tobii3
+            dva_per_pix = scaledown * orig_dva_per_pix; #REV: hardcoded values...for tobii3
             kernidxs, kerns = create_kerns(sres, dva_per_pix);
             pass;
         
@@ -1311,7 +1328,7 @@ if( __name__ == "__main__" ):
         print("Blur took {:4.1f} msec".format(1000*elap));
         
         #REV: draw circle and show "normal" too
-        showhere=True;
+        showhere=False;#True;
         if(showhere):
             cv2.imshow("Result", sres);
             cv2.imshow("Orig", snframe);
