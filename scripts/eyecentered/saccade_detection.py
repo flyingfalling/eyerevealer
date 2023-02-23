@@ -1,3 +1,9 @@
+#REV: todo:
+# Use smoothing using that soloky-nizy filter
+# Also, do Larsson et al 2013 Detection of Saccades and Postsaccadic Oscillations in the Presence of Smooth Pursuit
+# Also, check that other thing taht does eye tracking and quality etc. Also, use 3D values...to compute velocity that way.
+# REV; use better velocity smoothing etc...
+
 #REV: saccade detection from 2D data.
 
 #REV: 3 arguments:
@@ -130,25 +136,15 @@ df["dyfilt"] = np.diff(df.yfilt, append=df.iloc[len(df.index)-1].yfilt );
 df["vxfilt"] = df.dxfilt/df.Dt;
 df["vyfilt"] = df.dyfilt/df.Dt;
 
-#a = df["vxfilt"] * df["vxfilt"];
-#b = df.vxfilt    * df.vxfilt;
-#print((a==b).all());
-#closeguys=np.isclose(a,b);
+outdf = df.rename( columns={"t":"Tsec"} );
+outdf["gaze2d_0"] = (df.xfilt / xu) + x0;
+outdf["gaze2d_1"] = (df.yfilt / yu) + y0;
 
-#print( a[ False==closeguys ] );
-#print( b[ False==closeguys ] );
+outdf.to_csv(fname+"_resampled.csv");
+#print("REV: done");
 
-#df["vfilt"] = np.sqrt( df["vxfilt"] * df["vxfilt"] + df["vyfilt"] * df["vyfilt"] );
-df["vfilt"] = np.sqrt( df.vxfilt * df.vxfilt + df.vyfilt * df.vyfilt );
-
-#closeguys2=np.isclose(df["vfilt"], df["vfilt2"]);
-#print( df["vfilt"][ False==closeguys2 ] );
-#print( df["vfilt2"][ False==closeguys2 ] );
-
-
-#result = ( df.vfilt == df.vfilt2 );
-#print(result.all());
-#exit(1);
+#REV: wtf recursion error?
+df["vfilt"] = np.sqrt( df["vxfilt"] * df["vxfilt"] + df["vyfilt"] * df["vyfilt"] );
 
 print(df);
 
@@ -253,11 +249,6 @@ print("Time: {} (Nsac: {}   sacc/sec: {})".format( elt, len(sdf.index), len(sdf.
 #REV: unscale, uncenter it...
 
 #outdf = df.rename( columns={"xfilt":"gaze2d_0", "yfilt":"gaze2d_1"} );
-outdf = df.rename( columns={"t":"Tsec"} );
-outdf["gaze2d_0"] = (df.xfilt / xu) + x0;
-outdf["gaze2d_1"] = (df.yfilt / yu) + y0;
-
-outdf.to_csv(fname+"_resampled.csv");
 sdf.to_csv(fname+"_resampled_sacc.csv");
 
 
