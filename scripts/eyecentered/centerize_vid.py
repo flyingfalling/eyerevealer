@@ -612,7 +612,6 @@ def blur_concentric_gauss_mask(img, kernidxs, kerns):
     indices = list( zip(np.indices(img.shape)[0].flatten(), np.indices(img.shape)[1].flatten())); #REV: generator...but OK?
     indices = indices[0::3];
     #print(indices);
-    print("GO");
     #REV: implicit argument needs to be the first one.
     res=[];
     '''
@@ -623,7 +622,8 @@ def blur_concentric_gauss_mask(img, kernidxs, kerns):
         res.append(r);
         pass;
     '''
-    with Pool(8) as mypool:
+    nthreads=2;
+    with Pool(nthreads) as mypool:
         #res = np.array(mypool.map( partial( apply_mask_kernel2, img=img, kernidxs=kernidxs, kerns=kerns), indices ) );
         res = np.array(mypool.map( partial( apply_mask_kernel, img=img, kernidxs=kernidxs, kerns=kerns), indices ) );
         pass;
@@ -640,7 +640,6 @@ def blur_concentric_gauss_subsample(img, kernidxs, kerns):
     indices = list( zip(np.indices(img.shape)[0].flatten(), np.indices(img.shape)[1].flatten())); #REV: generator...but OK?
     indices = indices[0::3];
     #print(indices);
-    print("GO");
     #REV: implicit argument needs to be the first one.
     with Pool(12) as mypool:
         res = np.array(mypool.map( partial( apply_kernel, img=img, kernidxs=kernidxs, kerns=kerns), indices ) );
@@ -667,7 +666,7 @@ def blur_concentric_full( img, kernidxs, kerns ):
         locs = np.where(kernidxs==sigpx);
         res[ locs ] = blurred[ locs ];
         pass;
-
+    
     time2=time.time();
     print("Real Blur took: {} sec".format(1e3*(time2-time1)));
     return res;
@@ -1226,9 +1225,10 @@ if( __name__ == "__main__" ):
 
     
     kerns=None;
+    kernidxs=None;
 
     mask_3d = create_maskblurred_3chan_embedder( frame,  blursizepx );
-                                                 
+    
     while( ret ):
         #line = gazefh.readline();
         #if not line:
@@ -1243,6 +1243,7 @@ if( __name__ == "__main__" ):
         tsec = fridx * tdelta;
         tsec2 = tsec + tdelta;
         
+        print("Frame [{}/{}]  Time: {}".format(fridx, nframes, tsec));
         df = gazedf[ (gazedf.Tsec >= tsec) & (gazedf.Tsec < tsec2 ) ];
         #print( df.gaze2d_0 );
         #print( df.gaze2d_1 );
@@ -1314,7 +1315,7 @@ if( __name__ == "__main__" ):
         
         startt = time.time();
         
-        if( kerns is None ):
+        if( kernidxs is None and kerns is None ):
             dva_per_pix = scaledown * orig_dva_per_pix; #REV: hardcoded values...for tobii3
             kernidxs, kerns = create_kerns(sres, dva_per_pix);
             pass;
@@ -1340,14 +1341,14 @@ if( __name__ == "__main__" ):
         #REV: save each frame
         if( not blurwriter.isOpened() ):
             #fps=30; same as input vid
-            fourcc = cv2.VideoWriter_fourcc(*"MP4V");
+            fourcc = cv2.VideoWriter_fourcc(*"H264");
             isColor = True;
             
-            
-            blurname = os.path.join(odir, "blur.mp4");
-            centname = os.path.join(odir, "cent.mp4");
-            uncentname = os.path.join(odir, "uncent.mp4");
-            origname = os.path.join(odir, "orig.mp4");
+            ext=".mkv";
+            blurname = os.path.join(odir, "blur"+ext);
+            centname = os.path.join(odir, "cent"+ext);
+            uncentname = os.path.join(odir, "uncent"+ext);
+            origname = os.path.join(odir, "orig"+ext);
             
             blurwriter.open( blurname, fourcc=fourcc, fps=fps, frameSize=(sresb.shape[1], sresb.shape[0]), isColor=isColor );
             centwriter.open( centname, fourcc=fourcc, fps=fps, frameSize=(sres.shape[1], sres.shape[0]), isColor=isColor );

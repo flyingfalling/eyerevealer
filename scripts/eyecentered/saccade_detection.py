@@ -1,3 +1,9 @@
+#REV: todo:
+# Use smoothing using that soloky-nizy filter
+# Also, do Larsson et al 2013 Detection of Saccades and Postsaccadic Oscillations in the Presence of Smooth Pursuit
+# Also, check that other thing taht does eye tracking and quality etc. Also, use 3D values...to compute velocity that way.
+# REV; use better velocity smoothing etc...
+
 #REV: saccade detection from 2D data.
 
 #REV: 3 arguments:
@@ -127,7 +133,16 @@ df["dxfilt"] = np.diff(df.xfilt, append=df.iloc[len(df.index)-1].xfilt );
 df["dyfilt"] = np.diff(df.yfilt, append=df.iloc[len(df.index)-1].yfilt );
 df["vxfilt"] = df.dxfilt/df.Dt;
 df["vyfilt"] = df.dyfilt/df.Dt;
-df["vfilt"] = np.sqrt( df.vxfilt*df.vxfilt, df.vyfilt*df.vyfilt );
+
+outdf = df.rename( columns={"t":"Tsec"} );
+outdf["gaze2d_0"] = (df.xfilt / xu) + x0;
+outdf["gaze2d_1"] = (df.yfilt / yu) + y0;
+
+outdf.to_csv(fname+"_resampled.csv");
+#print("REV: done");
+
+#REV: wtf recursion error?
+df["vfilt"] = np.sqrt( df["vxfilt"] * df["vxfilt"] + df["vyfilt"] * df["vyfilt"] );
 
 print(df);
 
@@ -227,11 +242,6 @@ print("Time: {} (Nsac: {}   sacc/sec: {})".format( elt, len(sdf.index), len(sdf.
 #REV: unscale, uncenter it...
 
 #outdf = df.rename( columns={"xfilt":"gaze2d_0", "yfilt":"gaze2d_1"} );
-outdf = df.rename( columns={"t":"Tsec"} );
-outdf["gaze2d_0"] = (df.xfilt / xu) + x0;
-outdf["gaze2d_1"] = (df.yfilt / yu) + y0;
-
-outdf.to_csv(fname+"_resampled.csv");
 sdf.to_csv(fname+"_resampled_sacc.csv");
 
 
