@@ -21,6 +21,7 @@ tu = float(sys.argv[3]);
 
 xcol = sys.argv[4];
 xu = float(sys.argv[5]);
+
 ycol = sys.argv[6];
 yu = float(sys.argv[7]);
 
@@ -160,11 +161,11 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
 df_centered = pd.DataFrame();
 df_uncentered = pd.DataFrame();
 
-DELTASEC=-100;
+DELTASEC=-0.100;
 for timesec in df.t.unique():
     resdf_centered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=True);
     resdf_uncentered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=False);
-
+    
     df_centered = pd.concat( [df_centered, resdf_centered] );
     df_uncentered = pd.concat( [df_uncentered, resdf_uncentered] );
 
