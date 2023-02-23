@@ -50,7 +50,8 @@ df.x -= x0;
 df.y -= y0;
 
 df.x *= xu;
-df.y *= yu; #REV: will include the bottom-top flip!        
+df.y *= yu; #REV: will include the bottom-top flip!
+
 df.t *= tu;
 
 #REV: need something to access "target" in sal video...
@@ -90,6 +91,7 @@ NNEGSAMPS=1000;
 POSTGRACESEC=0.025;
 PREGRACESEC=0.050;
 def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", YCOL="y"):
+    print("Processing: [{}]".format(timesec));
     tprow = gazedf[ (gazedf[TCOL] == timesec) & (False == gazedf[XCOL].isna()) ].copy();
     if( 0 == len(tprow.index)  ):
         print("Null time [{}]".format(timesec));
@@ -163,6 +165,8 @@ df_uncentered = pd.DataFrame();
 
 DELTASEC=-0.100;
 for timesec in df.t.unique():
+    if( timesec > 30 ):
+        break;
     resdf_centered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=True);
     resdf_uncentered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=False);
     
@@ -175,7 +179,7 @@ df_centered["centered"] = True;
 df_uncentered["centered"] = False;
 
 dffinal = pd.concat([df_centered, df_uncentered]);
-dffinal.to_csv(outfname);
+dffinal.to_csv(outfname, index=False);
 
 #REV: fuck when I make the video it's going to be nasty...need to do for "every" timepoint... (every FRAME?!) Sample saliency from gaussian around?
 #REV: i.e. not just from instant, but from salmaps for e.g. one or two frames, with varying values... LPF faster...
