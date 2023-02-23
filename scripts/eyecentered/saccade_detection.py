@@ -101,7 +101,8 @@ df["vx"] = df.dx / df.Dt;
 df["vy"] = df.dy / df.Dt;
 
 #REV: in dva / sec
-df["v"] = np.sqrt( df.vx*df.vx + df.vy*df.vy );
+#df["v"] = np.sqrt( df.vx*df.vx + df.vy*df.vy );
+df["v"] = np.sqrt( df["vx"] * df["vx"] + df["vy"] * df["vy"] ); #df.vx*df.vx + df.vy*df.vy );
 
 
 def lpf( prev, curr, dt, tausec ):
@@ -115,6 +116,7 @@ def lpf( prev, curr, dt, tausec ):
 tcsec = 0.010;
 xfilt=[ df.iloc[0].x ];
 yfilt=[ df.iloc[0].y ];
+
 for i in range(1,len(df.index)):
     xfilt.append( lpf( xfilt[i-1], df.iloc[i].x, df.iloc[i].Dt, tcsec ) );
     yfilt.append( lpf( yfilt[i-1], df.iloc[i].y, df.iloc[i].Dt, tcsec ) );
@@ -127,7 +129,26 @@ df["dxfilt"] = np.diff(df.xfilt, append=df.iloc[len(df.index)-1].xfilt );
 df["dyfilt"] = np.diff(df.yfilt, append=df.iloc[len(df.index)-1].yfilt );
 df["vxfilt"] = df.dxfilt/df.Dt;
 df["vyfilt"] = df.dyfilt/df.Dt;
-df["vfilt"] = np.sqrt( df.vxfilt*df.vxfilt, df.vyfilt*df.vyfilt );
+
+#a = df["vxfilt"] * df["vxfilt"];
+#b = df.vxfilt    * df.vxfilt;
+#print((a==b).all());
+#closeguys=np.isclose(a,b);
+
+#print( a[ False==closeguys ] );
+#print( b[ False==closeguys ] );
+
+#df["vfilt"] = np.sqrt( df["vxfilt"] * df["vxfilt"] + df["vyfilt"] * df["vyfilt"] );
+df["vfilt"] = np.sqrt( df.vxfilt * df.vxfilt + df.vyfilt * df.vyfilt );
+
+#closeguys2=np.isclose(df["vfilt"], df["vfilt2"]);
+#print( df["vfilt"][ False==closeguys2 ] );
+#print( df["vfilt2"][ False==closeguys2 ] );
+
+
+#result = ( df.vfilt == df.vfilt2 );
+#print(result.all());
+#exit(1);
 
 print(df);
 
@@ -182,17 +203,18 @@ class saccade():
 
 
 
-cutoff=120.0;
-dcutoff=30.0; #REV: fuck can't account for counter-rotation ;(
+cutoff=50.0;
+dcutoff=50.0; #REV: fuck can't account for counter-rotation ;(
 insacc=False;
-for idx in range(0,len(df.v)):
-    if( df.vfilt[idx] >= cutoff and False == insacc):
+TOUSE="v";
+for idx in range(0,len(df.index)):
+    if( df.iloc[idx][TOUSE] >= cutoff and False == insacc):
         insacc=True;
         stt=idx-1;
         #stx=df.x[idx];
         #sty=df.y[idx];
         pass;
-    elif( df.vfilt[idx] < dcutoff and True == insacc ):
+    elif( df.iloc[idx][TOUSE] < dcutoff and True == insacc ):
         insacc=False;
         ent=idx; #REV: end is one after it goes below
         #enx=df.x[idx];
@@ -201,6 +223,9 @@ for idx in range(0,len(df.v)):
         pass;
     pass;
 
+
+#REV: filter out (a) too high accelerations (b) too high change in direction.
+#REV: i.e. apply a particle filter?
 
 #print(saccs);
 
@@ -212,11 +237,12 @@ for sacc in saccs:
     strow = df.iloc[sti];
     enrow = df.iloc[eni];
     #print(strow);
-    newrow = [ sti, eni, strow.t, enrow.t, strow.xfilt, enrow.xfilt, strow.yfilt, enrow.yfilt ];
+    newrow = [ int(sti), int(eni), strow.t, enrow.t, strow.xfilt, enrow.xfilt, strow.yfilt, enrow.yfilt ];
     sdf.loc[ len(sdf.index) ] = newrow;
     pass;
 
 sdf["magnitude"] = np.sqrt( (sdf.ENX-sdf.STX)**2 + (sdf.ENY-sdf.STY)**2 );
+sdf["duration"] = sdf.ENSEC-sdf.STSEC;
 
 
 print(sdf);
@@ -236,8 +262,48 @@ sdf.to_csv(fname+"_resampled_sacc.csv");
 
 
 
-#plt.hist( sdf.magnitude, bins=100 );
-#plt.show();
+plt.hist( sdf.magnitude, bins=100 );
+plt.show();
+
+plotdf=pd.DataFrame( columns=["tsec", "vel", "sidx", "magn"] );
+sidx=0;
+
+#REV: make a quick sketch of saccades by 1 deg things..
+for mag, grpdf in sdf.groupby(pd.cut(sdf["magnitude"], np.arange(5.5, 20.5, 1.0))):
+    print("Mag: {}".format(mag));
+    #print(grpdf);
+    print(grpdf.duration.median());
+    for idx, row in grpdf.iterrows():
+        #tmpdf = df.iloc[ int(row.STIDX) : int(row.ENIDX) ][["t", TOUSE]];
+        tmpdf = df[ (df.t >= row.STSEC) & (df.t <= row.ENSEC) ][["t", TOUSE]];
+        tmpdf.t -= tmpdf.t.min();
+        tmpdf.sort_values(by="t", inplace=True);
+        tmpdf["sidx"] = sidx;
+        tmpdf["magn"] = mag;
+        plotdf = pd.concat( [plotdf, tmpdf] );
+        sidx += 1;
+        pass;
+    pass;
+
+import seaborn as sns
+sns.set_theme(style="ticks")
+
+# Define the palette as a list to specify exact values
+palette = sns.color_palette("rocket_r")
+
+# Plot the lines on two facets
+sns.relplot(
+    data=plotdf,
+    x="t", y=TOUSE,
+    hue="sidx", row="magn",
+    kind="line", palette=palette,
+    height=3, aspect=3.0, facet_kws=dict(sharex=True),
+    )
+
+plt.xlim(0,0.5);
+plt.show();
+
+
 
 
 #REV: detect smooth purusits (note, need to counter VOR etc?)
