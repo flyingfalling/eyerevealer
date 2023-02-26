@@ -1269,12 +1269,12 @@ if( __name__ == "__main__" ):
             pass;
         else:
             cgzx = gzx - frame.shape[1]/2; #REV: centered.
-            cgzy = gzy - frame.shape[0]/2; #REV: centered. (note positive is up)
+            cgzy = gzy - frame.shape[0]/2; #REV: centered. (note positive is DOWN)
             
             #We must offset gaze by inverse of this number.
-            bg_gzx = bgwid/2 + (-1 * cgzx);
-            bg_gzy = bghei/2 + (-1 * cgzy); #this is from BOTTOM
-            bg_gzy = bghei - bg_gzy; #REV: this is from TOP
+            bg_gzx = bgwid/2 + (-1 * cgzx); #from left (positive RIGHT)
+            bg_gzy = bghei/2 + (-1 * cgzy); #this is from TOP (positive is DOWN)
+            #bg_gzy = bghei - bg_gzy; #REV: this is from TOP 24 feb 2023 changed (fixed)
             
             toadd = [ fridx, bg_gzx/bgwid, bg_gzy/bghei]; #REV: now from TOP, note!
             print(toadd)
@@ -1284,6 +1284,11 @@ if( __name__ == "__main__" ):
             
             bgimg = np.full( (bghei,bgwid,3), imgmeanpx, dtype=np.uint8 );
             res = embed_edge_gauss_blur( frame, bg_gzx, bg_gzy, bgimg, mask_3d );
+            #REV: bg_gz is center + -centeredgaze. I.e. if looking "up" (I will have lower i.e. 0.25).
+            #REV: Center is lets say 0.5. I want to "offset" as if I'm looking there. I.e. so I hould offset it "down"
+            #  cgz = -w/2 to +w/2
+            # bg_gz is w/2 + (-cgz), i.e. if cgz is -0.25 (looking "up"), then shift will be w/2 + (-1 * -0.25), i.e. 0.75, I.e.
+            # shift down. OK....?
             
             cx = bgimg.shape[1]/2;
             cy = bgimg.shape[0]/2;
