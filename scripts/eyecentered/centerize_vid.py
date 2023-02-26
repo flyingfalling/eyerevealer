@@ -1,5 +1,13 @@
 ##REV: centerize video based on eye position (i.e. make retinotopic, and apply peripheral blur, etc.)
 
+#REV: note input eye positions must be in format positive goes DOWN and positive goes RIGHT in videos frame.
+#REV: note input eye positions must be in range [0,1] where 0 is lowest part of image and 1 is max part of image
+#REV: this is typical for 2d eye positions in tobii2 and tobii3 (REV: and pupil invis?)
+
+#REV: note this refers to the LENS-DISTORTED IMAGE. To convert to "true" X/Y angles we need to undistort using image lens intrinsic
+#     matrix...
+#REV: or, better, use the 3d points (gp3? or gaze3d?), but then we need to project to image...( do they not undistort it?)
+
 import os;
 import sys;
 import cv2;
@@ -1249,6 +1257,11 @@ if( __name__ == "__main__" ):
         #print( df.gaze2d_1 );
         #gzx = np.mean( df.gaze2d_0[ ~np.isnan[df.gaze2d_0] ] );
         #gzy = np.mean( df.gaze2d_1[ ~np.isnan[df.gaze2d_1] ] );
+        
+        #REV: TODO 27 feb 2023
+        #REV: really should remove outliers? I.e. points that diverge from mean by...? (or "jumps")?
+        #REV: should do it *before* this point...
+        #REV: should remove saccades entirely? Or mark them as being contained in saccades?
         gzx = np.mean( df.gaze2d_0[ df.gaze2d_0.notna() ] );
         gzy = np.mean( df.gaze2d_1[ df.gaze2d_1.notna() ] );
         #REV: now, get average gaze location etc. from here I guess...
