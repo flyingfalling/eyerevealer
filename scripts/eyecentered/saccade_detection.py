@@ -12,7 +12,8 @@
 #     Where TIMEU, XU, YU are column units of TIME X Y in seconds and dva (indicates direction of X and Y as well, default of positive values is positive X to right, positive Y is up.
 #4) X0 Y0 Coordinates of (X=0, Y=0) with respect to the coordinate of straight ahead being (0,0) (in their units)
 
-#Tobii 2: 82 deg. horizontal / 52 deg. vertical
+#Tobii 2: 82 deg. horizontal / 52 deg. vertical  82/46.125 = 1.7777 i.e. isotropic pixels. But it is 82/52 = 1.577. I.e. each
+#         Y pixel is representing less space than it should (should be fewer pixels for same dva)
 #Tobii 3: H: 95°, V: 63°
 
 import sys

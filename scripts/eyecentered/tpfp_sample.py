@@ -1,12 +1,10 @@
-#REV: this will calculate saliency percent from some set of of sal maps.
-#REV: will take (1) eye positions (and times), (2) saliency maps, (3) raw computed inputs (for visualization only).
-#REV: need to compute both (a) ROC and (b) percentiles? Are they different?
+#REV: this simply does the sampling of TP and FP and time offsets.
+#REV: will take (1) eye positions (and times)
 
 #REV: for centered, we need to sample at the offset value of position (negatively). I.e. where was the CURRENT eye position
 #     100 msec ago (and sample saliency there).
 #REV: for uncentered, we need to simply sample the specified location
 
-# Can average timempoints around there, or use the smoothfin. Negative will be the (offset) baseline prior (at that time point).
 import sys
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -50,7 +48,7 @@ df.x -= x0;
 df.y -= y0;
 
 df.x *= xu;
-df.y *= yu; #REV: will include the bottom-top flip!
+df.y *= yu; #REV: will include a bottom-top flip if needed (i.e. I expect df.y to be in bottom-neg, up-positive after this)
 
 df.t *= tu;
 
@@ -104,8 +102,8 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     
     fprows = gazedf[ (gazedf[TCOL] != timesec) & (False == gazedf[XCOL].isna()) ].sample( n=NNEGSAMPS, replace=False ).copy();
     
-    tprow["tpfpdelta"] = "tp";
-    fprows["tpfpdelta"] = "fp";
+    tprow["tpfpdelta"] = "t";
+    fprows["tpfpdelta"] = "f";
     #REV: iloc is row index from 0, loc is index by index!
     timeidx = tprow.iloc[0][TCOL]
     tprow["timeidx"] = timeidx;
@@ -128,7 +126,7 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     
     #tprow[TCOL] = offsetdf.iloc[0][TCOL];
     offsetdf["timeidx"] = timeidx;
-    offsetdf["tpfpdelta"] = "delta";
+    offsetdf["tpfpdelta"] = "d";
     
     retdf = pd.concat( [tprow, fprows, offsetdf] );
 
@@ -160,26 +158,33 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     return retdf;
 
 
-df_centered = pd.DataFrame();
-df_uncentered = pd.DataFrame();
+df_centeredlist = []; #pd.DataFrame();
+df_uncenteredlist = []; #pd.DataFrame();
 
 DELTASEC=-0.100;
 for timesec in df.t.unique():
-    if( timesec > 30 ):
-        break;
     resdf_centered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=True);
     resdf_uncentered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=False);
     
-    df_centered = pd.concat( [df_centered, resdf_centered] );
-    df_uncentered = pd.concat( [df_uncentered, resdf_uncentered] );
-
+    df_centeredlist.append( resdf_centered );
+    df_uncenteredlist.append( resdf_uncentered );
+    
     pass;
+
+df_centered = pd.concat(df_centeredlist);
+df_uncentered = pd.concat(df_uncenteredlist);
 
 df_centered["centered"] = True;
 df_uncentered["centered"] = False;
 
+
+
 dffinal = pd.concat([df_centered, df_uncentered]);
+
+print("Will write to CSV file {}".format(outfname));
 dffinal.to_csv(outfname, index=False);
+
+print("Wrote to CSV file {}".format(outfname));
 
 #REV: fuck when I make the video it's going to be nasty...need to do for "every" timepoint... (every FRAME?!) Sample saliency from gaussian around?
 #REV: i.e. not just from instant, but from salmaps for e.g. one or two frames, with varying values... LPF faster...

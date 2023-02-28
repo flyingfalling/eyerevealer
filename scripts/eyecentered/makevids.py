@@ -3,6 +3,7 @@
 
 #REV: note, takes input as output from saliency_pct.py (t, x, y, xsamp, ysamp, etc.)
 
+#REV: note, takes y-up values, and x-right values (i.e. not tobii format). Flips Y.
 
 #REV: this runs it for the specified video...including drawing circles etc.
 #REV: however, I also want to open for all the different SALMAP guys? Just do separately lol...
@@ -44,15 +45,16 @@ rawvidfname = sys.argv[3]; #REV: this is RAW vid name
 outvidfname = sys.argv[4]; #REV: full path I guess?
 
 viddvawid = float(sys.argv[5]);
+viddvahei = float(sys.argv[6]);
 
-centuncent = sys.argv[6];
+centuncent = sys.argv[7];
 
-outdfname = sys.argv[7];
+outdfname = sys.argv[8];
 
 #REV: sal vids...
 #REV: for now, all vids in that dir with rawvidfname _ TAG.mkv?
 salfnamedict = {};
-for i in range(8, len(sys.argv), 2):
+for i in range(9, len(sys.argv), 2):
     key = sys.argv[i] ;
     if key in salfnamedict:
         print("ERROR; key {} already exists -- you must use unique names for sal inputs".format(key));
@@ -103,6 +105,7 @@ def sampsal( img, xydf, xcol="xsamppx", ycol="ysamppx"):
     #idxs=np.array(yxs).astype(int);
     #print(idxs.shape);
     #vals = img[np.array(xydf[ycol]).astype(int), np.array(xydf[xcol]).astype(int)];
+    #print(img.shape);
     retdf["sal"] = img[np.array(xydf[ycol]).astype(int), np.array(xydf[xcol]).astype(int)];
     
     '''
@@ -187,23 +190,28 @@ for key in salfnamedict:
 iscentered= (centuncent=="centered");
 df = df[ (df.centered == iscentered ) ];
 
-pxperdva = w/viddvawid;
+wpxperdva = w/viddvawid;
+hpxperdva = h/viddvahei;
+
+#REV: do the y ones not work because of Y-pixel size being different? I.e. not square pixels...not isotropic.
 
 #REV: convert all to image space...
 xcent=int(w/2);
 ycent=int(h/2);
 
 #REV: x will be actually the um, xsamp! Fuck...
-df["xsamppx"] = df.sampx * pxperdva + xcent;
+df["xsamppx"] = df.sampx * wpxperdva + xcent;
 
 #REV: norm x from left
-df["xsamppx01"] = (df.sampx * pxperdva + xcent)/w;
+df["xsamppx01"] = (df.sampx * wpxperdva + xcent)/w;
 
 #REV: y input is positive up, positive right. Need to make positive down.
-df["ysamppx"] = -(df.sampy * pxperdva) + ycent;
+df["ysamppx"] = -(df.sampy * hpxperdva) + ycent;
 
 #REV: norm y from top
-df["ysamppx01"] = (-(df.sampy * pxperdva) + ycent)/h;
+df["ysamppx01"] = (-(df.sampy * hpxperdva) + ycent)/h;
+
+print("Min/Max X: {}/{}    Y: {}/{}".format(df.xsamppx.min(), df.xsamppx.max(), df.ysamppx.min(), df.ysamppx.max()));
 
 #df = df.reset_index(); #REV: uhhh...so that at least rows are unique.
 print(df.head(10));
@@ -211,7 +219,7 @@ print(df.head(10));
 #REV: radii of circles or std of gaussians (in dva) to sample saliency. Will just blur image using filter and draw central pixels.
 #sal_circ_rads_dva = np.arange(1, 8.1, 1.0); #1,1.5,...4.5,5 i.e. 9 points...
 sal_circ_rads_dva = [2.5, 5, 10];
-sal_circ_rads_px = np.array(sal_circ_rads_dva) * pxperdva;
+sal_circ_rads_px = np.array(sal_circ_rads_dva) * hpxperdva;
 radsdict={};
 for dva, px in zip(sal_circ_rads_dva, sal_circ_rads_px):
     radsdict[dva] = px;
@@ -219,11 +227,11 @@ for dva, px in zip(sal_circ_rads_dva, sal_circ_rads_px):
 
 #REV: some global sizes for drawing pretty circles..
 whiterdva=5;
-whiterpx=int(whiterdva*pxperdva + 0.5);
+whiterpx=int(whiterdva * hpxperdva + 0.5);
 whitethickpx=int(whiterpx/5 + 0.5);
 
 redbluerdva=2.5;
-redbluerpx=int(redbluerdva*pxperdva + 0.5);
+redbluerpx=int(redbluerdva * hpxperdva + 0.5);
 redbluethickpx=int(redbluerpx/5 + 0.5);
 
 if(whiterpx < 5):
@@ -251,7 +259,7 @@ maxt = df.timeidx.max();
 
 #REV: saveall makes it save all data to databases (raw fp etc.)
 #REV: otherwise it just save percentiles...and ROC?
-SAVEALL=False;
+SAVEALL=True;
 dbconn=sqlite3.connect(outdfname);
 newcsv=True;
 
@@ -349,9 +357,9 @@ while(True):
                     pass;
                 else:
                     circdf = circresdftps;
-                    circdf["pct"] = circpctle;
                     pass;
                 
+                circdf["pct"] = circpctle;
                 circdf["blur"] = "c";
                 circdf["blurdva"] = dva;
                 circdf["blurpx"] = radpx;
@@ -373,9 +381,9 @@ while(True):
                     pass;
                 else:
                     gaussdf = gaussresdftps;
-                    gaussdf["pct"] = gausspctle;
                     pass;
                 
+                gaussdf["pct"] = gausspctle;
                 gaussdf["blur"] = "g";
                 gaussdf["blurdva"] = dva;
                 gaussdf["blurpx"] = radpx;
