@@ -45,6 +45,8 @@ def calc_pctl(posval, negvals):
 
 #REV: need to normalize "within" frames before sampling? fuck? Or just use raw pctiles lol
 #REV: hope it is auto-normalized...
+
+#REV: this *exactly* equals pctl for one posval...lol. 
 def calc_auroc(posvals, negvals, thresholds):
     tps=[1];  #REV: not really matter since it is >=, but just in case? I.e. if first threshold is higher than lowest value...
     fps=[1];
