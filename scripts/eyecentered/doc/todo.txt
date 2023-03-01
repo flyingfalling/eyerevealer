@@ -1,0 +1,25 @@
+
+
+1) Generate videos (eye centric, known DVA/px)
+   a) gaze-centered with no foveal blur
+   b) gaze-centered with foveal blur.
+         (REV: also do log mapping? I.e. saliency itself will increase in scale with eccentricity)
+2) Compute saliency maps of new videos
+3) For a given frame, check whether saliency of CURRENT x/y (thus, centered position) was salient in the gaze-centric video frame at NOW-DELTA, where DELTA is roughly 100 msec (actually, the "last" target before each eye movement). In other words,
+   a) grab frame at NOW-DELTA (exclude eye movements -- later!)
+   b) compute current position in old position coordinates, i.e. (newx, newy) - oldx,oldy. If previously was looking at 0,0, and now is 100, 100, I will look at the 100, 100 position in the old frame. If previously was looking at 100,100, and now at 0,0, I will look at -100, -100 in the old frame.
+      (REV: same as -old + new, i.e. new coordinates in shifted old.
+      --> Sample saliency at this position in the old frame. This is TP (true positive)
+   c) compute all other eye positions for a null model -- take random other eye positions in x, y space (or, should do as offsets from it?). It will show the centering bias, that's fine!
+      Each point is (randx, randy) - oldx, oldy. I.e. all the places you COULD be looking now, given (visual input at) the old eye position.
+      --> Sample saliency at these e.g. 500 random positions. These are the FP (false positives).
+   d) this will give an instantaneous percentile (instantaneous ROC?). Falling at 50% is AUROC of 0.5, 60% is 0.6, etc. Note, I do not take into account
+      thresholds as ROC does (?), but that does not matter, since percentiles implement it automatically. Everything below it is zero, i.e. my percentile
+      will remain the same. Everything above me, *I* am zero. I.e. the threshold level at which I disappear (jump from 1 to 0 in TP-FP) is my percentile.
+
+4) Take average over time (whole trials etc.), and plot instantaneous.
+   For normal (uncorrected, embedded, centered), eye-centered, and eye-centered blurred. Note, eye-centered blurred, the eye is always at each time point assumed to be at (0,0) before the eye movement, thus I will look at position (newx, newy) (current eye position), in the old uncentered (but embedded, edge feathered) map.
+
+
+4) Requires finding eye movements, smoothing data, etc.
+
