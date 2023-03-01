@@ -260,7 +260,7 @@ maxt = df.timeidx.max();
 #REV: saveall makes it save all data to databases (raw fp etc.)
 #REV: otherwise it just save percentiles...and ROC?
 SAVEALL=True;
-dbconn=sqlite3.connect(outdfname);
+dbconn=sqlite3.connect(outdfname, timeout=6000000);
 newcsv=True;
 
 #df = df[['t','tpfpdelta','x','y','timeidx','sampx','sampy']];
@@ -425,7 +425,7 @@ while(True):
             outdflist = [];
             print("DUMPING {} rows to {}".format(len(outdf.index), outdfname));
             if( SAVEALL ):
-                outdf = outdf[['tpfpdelta','blur','blurdva','saltype','frameidx','sal','x','y','timeidx']];
+                outdf = outdf[['tpfpdelta','blur','blurdva','saltype','frameidx','sal','x','y','timeidx','pct']];
                 pass;
             
             if( newcsv ): #0 == len(outdflist) ):
