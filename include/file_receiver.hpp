@@ -73,7 +73,6 @@ public:
     fprintf(stdout, "FILE RECV: Got first data, will now communicate with same OTHER\n");
     while( localloop() && loop() )
       {
-	
 	//REV: read from file into vec, up to chunksize bytes... (or some timing info?)
 	if( ifs )
 	  {
@@ -94,14 +93,18 @@ public:
 		fprintf(stdout, "STOPPED()\n");
 	      }
 	  }
-
+	
 	
 	if( !vec.empty() )
 	  {
 	    mbuf.movefrom( vec );
 	    //mbuf.cv.notify_all(); //No need to wait() conditionally because I will just read no matter what haha.
 	  }
-      }
+	
+	//REV: need to sleep or it will hang? (reads data too fast?)
+	std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+      } //end while loop() and  localloop()
     std::fprintf(stdout, "OUT DOLOOP: FILE recv loop (Tag=[%s])\n", tag.c_str());
   }
   

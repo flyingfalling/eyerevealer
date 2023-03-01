@@ -24,6 +24,7 @@ protected:
   
   bool saving_raw;
   uint64_t saving_idx;
+  bool dropmem;
   std::string saving_raw_dir;
 
   double timebase_hz_sec; //assume all outputs share a timebase...? That may not be correct?
@@ -34,8 +35,8 @@ public:
   
     
   //Will derived classes call this constructor? YES
-  device_stream_consumer_parser_base()
-    : saving_raw(false), saving_idx(0)
+  device_stream_consumer_parser_base( const bool _dropmem=true )
+    : saving_raw(false), saving_idx(0), dropmem(_dropmem)
   {   }
   
   ~device_stream_consumer_parser_base()
@@ -214,8 +215,8 @@ struct device_stream_consumer_parser
   
 public:
   //Will derived classes call this constructor? YES
-  device_stream_consumer_parser()
-    : device_stream_consumer_parser_base()
+  device_stream_consumer_parser( const bool _dropmem=true )
+    : device_stream_consumer_parser_base( _dropmem )
   {  return; }
   
   ~device_stream_consumer_parser()

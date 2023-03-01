@@ -3,7 +3,7 @@
 #include <CompareVersion/CompareVersion.hpp>
 
 #define FRSKIP 150
-#define DEBUG_LEVEL 1
+#define DEBUG_LEVEL 0
 #define HTTP_DEBUG_LEVEL 0
 
 //Use HDF5 (with global static mutex in h5VideoWriter) for raw saving depth

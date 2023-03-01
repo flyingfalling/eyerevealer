@@ -111,9 +111,7 @@ public:
     bool shouldsave = false;
     std::uint64_t mysaveidx=0;
 
-    const bool dropmem = true;
-
-    
+        
     while( localloop() && loop() )
       {
 	wait_or_timeout_cond( [&]() -> bool { return (!localloop() || dsp->mbuf.size() > 0); },

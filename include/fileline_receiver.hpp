@@ -121,6 +121,8 @@ public:
 	    mbuf.movefrom( vec );
 	    //mbuf.cv.notify_all(); //No need to wait() conditionally because I will just read no matter what haha.
 	  }
+	std::this_thread::sleep_for(std::chrono::microseconds(50));
+	
       }
     std::fprintf(stdout, "OUT DOLOOP: FILELINE recv loop (Tag=[%s])\n", tag.c_str());
   }
