@@ -19,7 +19,7 @@ dbconn = sqlite3.connect( dbfname, timeout=60000 );
 #REV: read it all into memory or should I do something else like...only query where tpfpdelta == t Yea...
 
 dflist = [];
-chunksizerows=100000;
+chunksizerows=500000;
 iterated=0;
 #for df in pd.read_sql('SELECT * FROM {} WHERE tpfpdelta="t"'.format(tablename), dbconn, chunksize=chunksizerows):
 for df in pd.read_sql('SELECT * FROM {} WHERE timeidx>5'.format(tablename), dbconn, chunksize=chunksizerows):

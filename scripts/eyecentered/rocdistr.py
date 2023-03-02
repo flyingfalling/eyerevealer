@@ -7,6 +7,7 @@ import datetime
 import matplotlib
 
 infile = sys.argv[1];
+tag = sys.argv[2];
 
 df = pd.read_csv(infile);
 
@@ -33,7 +34,7 @@ for grp, gdf in df.groupby(['blurdva', 'blur', 'saltype']):
 
 fig.tight_layout();
 
-fig.savefig('rochist.pdf');
+fig.savefig('rochist_' + tag + '.pdf');
 
 
 #REV: do sliding window...
@@ -62,8 +63,10 @@ for grp1, gdf1 in df.groupby(['blurdva', 'saltype']):
         #REV: rolling window within each...
     rlist=[];
     WINSIZE=10;
+    WINMULT=5;
+    MINSAMPS=WINSIZE*WINMULT;
     #REV: rolling just means it represents center of window...
-    resdf = gdf.rolling(window='{}s'.format(WINSIZE), min_periods=WINSIZE*10, on='timeidx', center=True).mean();
+    resdf = gdf.rolling(window='{}s'.format(WINSIZE), min_periods=MINSAMPS, on='timeidx', center=True).mean();
     ax=axs[idx,0];
     #start=pd.Timestamp('20180606')
     #plt.plot(start+df.index, df)
@@ -99,7 +102,7 @@ for grp1, gdf1 in df.groupby(['blurdva', 'saltype']):
 
 fig.tight_layout();
 
-fig.savefig('roctrajs.pdf');
+fig.savefig('roctrajs_' + tag + '.pdf');
 
 
 '''
