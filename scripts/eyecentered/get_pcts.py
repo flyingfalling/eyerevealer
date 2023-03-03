@@ -4,6 +4,7 @@
 
 #REV: If I have the raw data, just get each condition, and summarize it...
 
+import time
 import sys
 import pandas as pd
 import sqlite3
@@ -84,15 +85,15 @@ togrp = ['blurdva', 'blur', 'saltype'];
 threshs=list(range(0,256));
 
 timeidxs = cur.execute("SELECT MIN(timeidx), MAX(timeidx) FROM data").fetchone();
-print("Starting timeidx {}".format(timeidx));
+print("Starting timeidx {}".format(timeidxs));
 print(timeidxs);
 mintimeidx = timeidxs[0];
 maxtimeidx = timeidxs[1];
 timeidx = mintimeidx;
 
 while( timeidx <= maxtimeidx ):
-    df = pd.read_sql( 'SELECT * FROM {} WHERE timeidx=={}'.format('data', timeidx));
-    
+    print("Time idx {}/{}".format(timeidx,maxtimeidx));
+    df = pd.read_sql( 'SELECT * FROM {} WHERE timeidx=={}'.format('data', timeidx), indbconn );
     if( len(df.index) < 1 ):
         print("Finished reading all time idxs! {}".format(timeidx));
         break;

@@ -1,7 +1,7 @@
 INCSV=$1 #~/mazda_results_allcalced/raw-2022-02-23-15-28-45/tobii2_color.mkv.gaze_resampled.csv
 OUTDIR=$2
 OUTCSV=$OUTDIR"/tpfp.db"
-echo "OUT CSV TO: $OUTCSV"
+echo "OUT CSV (DB) TO: $OUTCSV"
 #REV: both has cent and uncent auto inside...
 
 #REV: not correct since further away pixels are "larger" (more of them) for same angle (or, in other words, pixels are smaller)

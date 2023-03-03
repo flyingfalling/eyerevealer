@@ -17,7 +17,7 @@ do
     newdir=`basename $f`
     MYOUTDIR="$OUTDIR""/""$newdir"
     echo "Output to: "$MYOUTDIR
-    csvfile=$f"/tpfp.csv"
+    csvfile=$f"/tpfp.db"
 
     mkdir -p $MYOUTDIR
     
