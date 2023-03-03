@@ -10,7 +10,7 @@ mkdir -p $SAVEDIR
 
 echo "MAKE_SINGLE_VID: " $SAVEDIR
 
-SALDB="sal.db"
+SALDB="$INVID""_""sal.db"
 OUTVID="$INVID""_circles"
 
 python3 makevids.py $INCSV [,] "$INDIR"/"$INVID" "$SAVEDIR"/"$OUTVID" $DVAWID $DVAHEI $CENT "$SAVEDIR"/"$SALDB" f "$INDIR"/"$INVID"_fin.mkv c "$INDIR"/"$INVID"_col.mkv l "$INDIR"/"$INVID"_lum.mkv m "$INDIR"/"$INVID"_mot.mkv o "$INDIR"/"$INVID"_ori.mkv s "$INDIR"/"$INVID"_smoothfin.mkv

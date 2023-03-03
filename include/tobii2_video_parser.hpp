@@ -12,8 +12,8 @@ struct tobii2_video_parser
   mpegts_parser mpegparser;
   
   
-  tobii2_video_parser( const size_t maxtbuf=0 )
-    : device_stream_consumer_parser()
+  tobii2_video_parser( const bool _dropmem=true, const size_t maxtbuf=0 )
+    : device_stream_consumer_parser(_dropmem)
   {
     timebase_hz_sec = -1;
     scene_frames = std::make_shared<timed_buffer<cv::Mat,std::uint64_t>>(maxtbuf);
@@ -67,14 +67,11 @@ struct tobii2_video_parser
     std::thread writethread;
     cv::Mat mat;
     //cv::Mat toshow;
-
+    
     bool shouldsave=false;
     std::uint64_t mysaveidx=0;
-
-    const bool dropmem = true;
     
-    
-    
+        
     fprintf(stdout, "Init Decoding -- waiting for first data\n");
     
     wait_or_timeout_cond( [&]() -> bool { return ( !dsp->islooping() || !localloop() || dsp->mbuf.size() > startbufbytes ); },
@@ -86,7 +83,6 @@ struct tobii2_video_parser
     fprintf(stdout, "FINISHED init decode\n");
     while( localloop() && loop() )
       {
-	
 	//LOCK
 	{
 	  const std::lock_guard<std::mutex> lock(mu);
@@ -125,10 +121,9 @@ struct tobii2_video_parser
 	    }
 	}
 	//UNLOCK
-	
+
 	wait_or_timeout_cond( [&]() -> bool { return (  !dsp->islooping() || !localloop() || dsp->mbuf.size() > minwaitbytes); },
 			      loop, dsp->mbuf.cv, dsp->mbuf.pmu, 5e6 );
-	
 	
 	
 	if( shouldsave )

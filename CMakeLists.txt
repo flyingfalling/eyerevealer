@@ -81,6 +81,7 @@ include_directories( ${OpenCV_INCLUDE_DIRS} )
 #)
 
 find_package(FFMPEG 4.4.0 COMPONENTS avdevice avfilter avformat avcodec avutil swresample swscale)
+#find_package(FFMPEG 5.1.2 COMPONENTS avdevice avfilter avformat avcodec avutil swresample swscale)
 
 add_compile_definitions(FFMPEG_LIB_VERSION=${FFMPEG_VERSION})
 
@@ -146,27 +147,25 @@ target_link_libraries (${EXECUTABLE_NAME} ${EXTRA_LIBS} uuid pthread ${OpenCV_LI
 
 install(TARGETS ${EXECUTABLE_NAME} DESTINATION /usr/local/bin)
 
-RETURN()
 
 ############## TOBII2 GAZE DECODER #################
 
 set(EXECUTABLE_NAME2 tobii2_file_vidgaze_decoder.exe)
-add_executable (${EXECUTABLE_NAME2} "tools/tobii2_file_vidgaze_decoder.cpp")
-target_link_libraries (${EXECUTABLE_NAME2} ${EXTRA_LIBS} uuid pthread mdns_cpp ${OpenCV_LIBS} ${FFMPEG_LIBRARIES} )
+configure_file( include/rteye2_config.hpp.in rteye2_config.hpp )
+set(SOURCES2 ${SOURCES2} "tools/tobii2_file_vidgaze_decoder.cpp")
+add_executable (${EXECUTABLE_NAME2} ${SOURCES2})
+target_include_directories(${EXECUTABLE_NAME2} PUBLIC
+                           "${PROJECT_BINARY_DIR}"
+                           )
+target_link_libraries (${EXECUTABLE_NAME2} ${EXTRA_LIBS} uuid pthread ${OpenCV_LIBS} ${FFMPEG_LIBRARIES} glfw imgui mdns_cpp )
+
 install(TARGETS ${EXECUTABLE_NAME2} DESTINATION /usr/local/bin)
 
-############## DEPTH DECODER #################
 
-set(EXECUTABLE_NAME2 file_depth_decoder.exe)
-add_executable (${EXECUTABLE_NAME2} "tools/file_depth_decoder.cpp")
-target_link_libraries (${EXECUTABLE_NAME2} ${EXTRA_LIBS} uuid pthread mdns_cpp ${OpenCV_LIBS} ${FFMPEG_LIBRARIES} )
-install(TARGETS ${EXECUTABLE_NAME2} DESTINATION /usr/local/bin)
-
+RETURN()
 
 
 ####################### REV OLD CODE ######################
-
-
 #include_directories(${CMAKE_SOURCE_DIR}/itd/LINUX/ISCLibxc/include/)
 #link_directories(${CMAKE_SOURCE_DIR}/itd/LINUX/ISCLibxc/lib/x86_64)
 #include_directories(${CMAKE_SOURCE_DIR}/itd/LINUX/FTDI/include/)

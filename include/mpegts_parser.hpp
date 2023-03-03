@@ -200,13 +200,7 @@ struct mpegts_parser
       //if (-1 == vid_stream_id)
       if( vid_stream_id < 0 )
 	{
-	  fprintf(stderr, "REV: couldn't find video stream\n");
-	  exit(1);
-	}
-      
-      if( nullptr == vid_codec )
-	{
-	  fprintf(stderr, "Couldn't find codec for video stream from find_best_stream\n");
+	  fprintf(stderr, "REV: couldn't find video stream [%d]\n", vid_stream_id);
 	  exit(1);
 	}
       
@@ -215,6 +209,14 @@ struct mpegts_parser
       //vid_codec = const_cast<AVCodec*>(avcodec_find_decoder( format_context->streams[vid_stream_id]->codecpar->codec_id ));
       vid_codec = avcodec_find_decoder( format_context->streams[vid_stream_id]->codecpar->codec_id );
       vid_codec_context = avcodec_alloc_context3(vid_codec);
+
+      if( nullptr == vid_codec )
+	{
+	  fprintf(stderr, "Couldn't find codec for video stream from find_best_stream\n");
+	  exit(1);
+	}
+      
+      
       
       int ret = avcodec_parameters_to_context(vid_codec_context, format_context->streams[vid_stream_id]->codecpar);
       
@@ -270,21 +272,20 @@ struct mpegts_parser
 					  -1, -1, NULL, 0);
       
       fprintf(stdout, "Found best audio stream [%d]\n", aud_stream_id );
-      
-      if( nullptr == aud_codec )
+      if (aud_stream_id == -1)
 	{
-	  fprintf(stderr, "Couldn't find codec for audio stream from find_best_stream. Turning audio off (REV: maybe tobii version is <=1.14?)\n");
+	  fprintf(stderr, "REV: couldn't find audio stream (doesn't exist in file/stream?)\n");
 	}
       else
-	{
-	  if (aud_stream_id == -1)
-	    {
-	      fprintf(stderr, "REV: couldn't find audio stream\n");
-	      exit(1);
-	    }
-	  
-	  //aud_codec = const_cast<AVCodec*>(avcodec_find_decoder( format_context->streams[aud_stream_id]->codecpar->codec_id ));
+	{  
+	//aud_codec = const_cast<AVCodec*>(avcodec_find_decoder( format_context->streams[aud_stream_id]->codecpar->codec_id ));
 	  aud_codec = avcodec_find_decoder( format_context->streams[aud_stream_id]->codecpar->codec_id );
+
+	  if( nullptr == aud_codec )
+	    {
+	      fprintf(stderr, "Couldn't find codec for audio stream from find_best_stream. Turning audio off (REV: maybe tobii version is <=1.14?)\n");
+	    }
+	  else{
 	  aud_codec_context = avcodec_alloc_context3(aud_codec);
 	  int ret = avcodec_parameters_to_context(aud_codec_context, format_context->streams[aud_stream_id]->codecpar);
 	  if( ret<0 )
@@ -303,6 +304,7 @@ struct mpegts_parser
 	  audio_rate_hz_sec = aud_codec_context->sample_rate;
 	  audio_bytes_per_sample = av_get_bytes_per_sample(aud_codec_context->sample_fmt);
 	  fprintf(stdout, "REV: audio codec sample rate (hz/sec)=[%d], bytes/sample=[%d]\n", audio_rate_hz_sec, audio_bytes_per_sample);
+	  }
 	}
       
       fprintf(stdout, "Finished init audio codec...\n");
@@ -512,6 +514,9 @@ struct mpegts_parser
     double min_sampletime_sec = 3.0;
     //uint64_t required_pts = min_sampletime_sec * pts_timebase_hz_sec;
     //const std::lock_guard<std::mutex> lock(mu);
+
+    //fprintf(stdout, "%ld - %ld  (TB: %ld): %lf\n", last_frame_pts , first_frame_pts, pts_timebase_hz_sec, (last_frame_pts - first_frame_pts)/(double)pts_timebase_hz_sec );
+    
     if( first_frame_pts < last_frame_pts && 
 	(last_frame_pts - first_frame_pts)/(double)pts_timebase_hz_sec > min_sampletime_sec )
       {
@@ -573,7 +578,6 @@ struct mpegts_parser
 		    {
 		      {
 			const std::lock_guard<std::mutex> lock(mu);
-		      
 			if( 0==nframes )
 			  {
 			    int decode_error_flags = avframe->decode_error_flags;
@@ -586,6 +590,10 @@ struct mpegts_parser
 				last_frame_pts = avframe->pts;
 				++nframes;
 			      }
+			    else
+			      {
+				fprintf(stderr, "Error in frames...\n");
+			      }
 			    //REV: will PTS ever reset??!
 			  }
 			else
@@ -594,7 +602,7 @@ struct mpegts_parser
 			    vid_frame_q.push( avframe );
 			    last_frame_pts = avframe->pts;
 			    ++nframes;
-			  
+			    
 			    _estimate_set_fps(); //internal
 			  }
 		      

@@ -20,7 +20,6 @@ struct tobii2_data_parser
   std::shared_ptr<timed_buffer<json,tobii2time_t>> sig_data;
   std::shared_ptr<timed_buffer<json,tobii2time_t>> ets_data;
   std::shared_ptr<timed_buffer<json,tobii2time_t>> marker2d_data;
-    
   std::thread mythread;
 
   //REV: allow them to set per-output...?
@@ -173,8 +172,8 @@ struct tobii2_data_parser
 			    ISACTIVE_CONTAINS( gd ); //gaze direction
 			    ISACTIVE_CONTAINS( gp ); //2d gaze pos
 			    ISACTIVE_CONTAINS( gp3 ); //3d gaze pos
-			    ISACTIVE_CONTAINS( gy ); //gaze direction
-			    ISACTIVE_CONTAINS( ac ); //gaze direction
+			    ISACTIVE_CONTAINS( gy ); //gyro
+			    ISACTIVE_CONTAINS( ac ); //accelerometer
 			    ISACTIVE_CONTAINS_SYNC( pts ); //pts sync (vid pts)
 			    ISACTIVE_CONTAINS_SYNC( epts ); //eye cam pts
 			    ISACTIVE_CONTAINS_SYNC( vts ); //vts sync

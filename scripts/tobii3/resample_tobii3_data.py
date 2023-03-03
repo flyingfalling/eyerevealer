@@ -5,6 +5,8 @@
 # 3) output fname
 # 4) (optional) resample rate (hz/sec). Default is 200... (tobii sample rate)
 
+#REV: sampler of JSON input
+
 import sys
 import struct
 import json
