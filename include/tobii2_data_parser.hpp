@@ -20,7 +20,6 @@ struct tobii2_data_parser
   std::shared_ptr<timed_buffer<json,tobii2time_t>> sig_data;
   std::shared_ptr<timed_buffer<json,tobii2time_t>> ets_data;
   std::shared_ptr<timed_buffer<json,tobii2time_t>> marker2d_data;
-    
   std::thread mythread;
 
   //REV: allow them to set per-output...?

@@ -313,9 +313,11 @@ newcsv=True;
 #df = df[['t','tpfpdelta','x','y','timeidx','sampx','sampy']];
 
 def calc_pctl(posval, negvals):
-    pctle = ((negvals < posval).sum()) / float(len(negvals)+1);
+    #pctle = ((negvals < posval).sum()) / float(len(negvals)+1);                                                                       
+    nlt = (negvals < posval).sum(); # / float(len(negvals)+1);                                                                         
+    neq = (negvals == posval).sum();
+    pctle = (nlt + neq/2) / len(negvals); #REV: should I include myself? If zero neg vals we fucked anyways lol                        
     return pctle;
-
 
 
 while(True):

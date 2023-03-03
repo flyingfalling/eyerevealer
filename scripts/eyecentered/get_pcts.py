@@ -14,23 +14,25 @@ tablename = sys.argv[2];
 outfname = sys.argv[3];
 
 
-dbconn = sqlite3.connect( dbfname, timeout=60000 );
 
 #REV: read it all into memory or should I do something else like...only query where tpfpdelta == t Yea...
 
-dflist = [];
-chunksizerows=100000;
-iterated=0;
-#for df in pd.read_sql('SELECT * FROM {} WHERE tpfpdelta="t"'.format(tablename), dbconn, chunksize=chunksizerows):
-for df in pd.read_sql('SELECT * FROM {} WHERE timeidx>5'.format(tablename), dbconn, chunksize=chunksizerows):
-#for df in pd.read_sql('SELECT * FROM {} WHERE timeidx>5 AND timeidx<8'.format(tablename), dbconn, chunksize=chunksizerows):
-    iterated+=1;
-    print("Reading {} rows ({} so far)".format(chunksizerows, chunksizerows*iterated));
-    dflist.append(df);
+#REV: this takes too long... I need to 1) create an index on timeidx 2) read chunks...
+
+import sqlite3;
+tablename='data';
+indbconn = sqlite3.connect( dbfname, timeout=60000000 );
+
+#REV: try sorting it first???
+dbtime = time.time();
+cur = indbconn.cursor()
+res = cur.execute("SELECT count(*) FROM  sqlite_master WHERE  type= 'index' and tbl_name = 'data' and name = 'timeidx_id'").fetchone();
+indexexists=res[0];
+if( indexexists < 1 ):
+    indbconn.execute('CREATE INDEX timeidx_id ON data(timeidx)');
+    indbconn.commit();
     pass;
-
-df = pd.concat( dflist ).reset_index(drop=True);
-
+print("Sorted DB: {:4.1f} msec".format((time.time()-dbtime)*1e3));
 
 #REV: this will only work if PCT is already computed.
 
@@ -75,34 +77,43 @@ def calc_auroc(posvals, negvals, thresholds):
     #REV: backwards...so wtf? Yea, I can't do diff. I need to use raw value.
     
 
+#REV: do this with DB.
+    
 mylist = [];
-togrp = ['blurdva', 'blur', 'saltype', 'timeidx'];
+togrp = ['blurdva', 'blur', 'saltype'];
 threshs=list(range(0,256));
-for val, vdf in df.groupby(togrp):
-    myt = vdf[ vdf.tpfpdelta=='t' ].iloc[0]['sal'];
-    fps = vdf[ vdf.tpfpdelta=='f' ];
-    pctle = calc_pctl(myt, fps['sal']);
-    roc = calc_auroc([myt], fps['sal'], threshs);
-    #print(pctle);
-    val = list(val);
-    mylist.append( val + [pctle, roc] );
+
+timeidxs = cur.execute("SELECT MIN(timeidx), MAX(timeidx) FROM data").fetchone();
+print("Starting timeidx {}".format(timeidx));
+print(timeidxs);
+mintimeidx = timeidxs[0];
+maxtimeidx = timeidxs[1];
+timeidx = mintimeidx;
+
+while( timeidx <= maxtimeidx ):
+    df = pd.read_sql( 'SELECT * FROM {} WHERE timeidx=={}'.format('data', timeidx));
+    
+    if( len(df.index) < 1 ):
+        print("Finished reading all time idxs! {}".format(timeidx));
+        break;
+    
+    for val, vdf in df.groupby(togrp):
+        myt = vdf[ vdf.tpfpdelta=='t' ].iloc[0]['sal'];
+        fps = vdf[ vdf.tpfpdelta=='f' ];
+        pctle = calc_pctl(myt, fps['sal']);
+        auroc = calc_auroc([myt], fps['sal'], threshs);
+        val = list(val);
+        mylist.append( val + [pctle, auroc] );
+        pass;
+    
+    timeidx = cur.execute("SELECT MIN(timeidx) FROM data WHERE timeidx > {}".format(timeidx)).fetchone()[0];
+    
     pass;
 
-resdf = pd.DataFrame(columns=togrp+['pct', 'roc'], data=mylist);
+resdf = pd.DataFrame(columns=togrp+['pctle', 'auroc'], data=mylist);
 
-alllist=[];
-togrp2=['blurdva', 'blur', 'saltype'];
-for val, vdf in df.groupby(togrp2):
-    val = list(val);
-    allroc = calc_auroc( vdf[ vdf.tpfpdelta == 't' ][['sal']], vdf[ vdf.tpfpdelta == 'f' ][['sal']], threshs );
-    alllist.append( val + [allroc] );
-    pass;
-
-alldf = pd.DataFrame(columns=togrp2+['allroc'], data=alllist);
-print(alldf);
-alldf.to_csv(outfname+'_all.csv', index=False);
-
-result = resdf[['blurdva', 'blur', 'saltype', 'pct', 'roc']].groupby(['blurdva', 'blur', 'saltype']).mean();
+#REV: not printing this out, this just summary.
+result = resdf[['blurdva', 'blur', 'saltype', 'pctle', 'auroc']].groupby(['blurdva', 'blur', 'saltype']).mean();
 print(result);
 print("Writing CSV to {}".format(outfname));
 #result.to_csv(outfname);
