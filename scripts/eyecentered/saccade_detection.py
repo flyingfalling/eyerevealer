@@ -37,16 +37,17 @@ yu = float(sys.argv[7]);
 x0 = float(sys.argv[8]);
 y0 = float(sys.argv[9]);
 
-if( len(sys.argv) > 10 ):
-    sep = sys.argv[10];
-else:
-    sep = ' ';
+sep = sys.argv[10];
+if( len(sep) != 3 or sep[0] != '[' or sep[2] != ']' ):
+    print("Need sep s as [s]");
+    exit;
     pass;
+sep=sep[1];
 
 print("Using sep: [{}] (Xcol: [{}], Ycol: [{}])".format(sep, xcol, ycol));
 df2 = pd.read_csv( fname, sep=sep );
 
-
+print(df2[['gaze2d_0', 'gaze2d_1', 'Tsec']]);
 df = df2.rename(columns={tcol:"t", xcol:"x", ycol:"y"}); #inplace=True
 
 print(df);
@@ -90,6 +91,9 @@ df.y -= y0; #REV: ok...
 df.x *= xu;
 df.y *= yu; #REV: will include the bottom-top flip!
 
+print(df[['t','x','y']].head());
+
+df = df[ (df.x.notnull()) & (df.y.notnull()) & (df.t.notnull()) ];
 
 
 df.t *= tu;
@@ -137,17 +141,19 @@ df["dyfilt"] = np.diff(df.yfilt, append=df.iloc[len(df.index)-1].yfilt );
 df["vxfilt"] = df.dxfilt/df.Dt;
 df["vyfilt"] = df.dyfilt/df.Dt;
 
+df["vfilt"] = np.sqrt( df["vxfilt"] * df["vxfilt"] + df["vyfilt"] * df["vyfilt"] );
+
 outdf = df.rename( columns={"t":"Tsec"} );
 outdf["gaze2d_0"] = (df.xfilt / xu) + x0;
 outdf["gaze2d_1"] = (df.yfilt / yu) + y0;
 
 outdf.to_csv(fname+"_resampled.csv");
-#print("REV: done");
 
 #REV: wtf recursion error?
-df["vfilt"] = np.sqrt( df["vxfilt"] * df["vxfilt"] + df["vyfilt"] * df["vyfilt"] );
+print(df.head());
 
-print(df);
+print("Exiting sacc_dect...will not detect saccs yet.");
+exit(0);
 
 
 #REV: need to figure out how to detect saccades in direction (i.e. min/max curvature).

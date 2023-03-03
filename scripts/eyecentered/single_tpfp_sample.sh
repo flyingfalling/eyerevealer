@@ -1,6 +1,6 @@
 INCSV=$1 #~/mazda_results_allcalced/raw-2022-02-23-15-28-45/tobii2_color.mkv.gaze_resampled.csv
 OUTDIR=$2
-OUTCSV=$OUTDIR"/tpfp.csv"
+OUTCSV=$OUTDIR"/tpfp.db"
 echo "OUT CSV TO: $OUTCSV"
 #REV: both has cent and uncent auto inside...
 
