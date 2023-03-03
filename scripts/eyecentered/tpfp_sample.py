@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import math
 import cv2
+import sqlite3
 
 fname = sys.argv[1];
 
@@ -105,10 +106,13 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     tprow["tpfpdelta"] = "t";
     fprows["tpfpdelta"] = "f";
     #REV: iloc is row index from 0, loc is index by index!
-    timeidx = tprow.iloc[0][TCOL]
+    timeidx = tprow.iloc[0][TCOL] #REV: time index is the actual time I sampled from (i.e. sample from timesec, to do that I get all values with that timepoint that are not NAN,
+    #REV: if timeidx is not timesec, error?
     tprow["timeidx"] = timeidx;
     fprows["timeidx"] =timeidx;
-    
+
+    #REV: timeidx is the UNOFFSET time (i.e. the time point of which the X, Y of the TP is drawn). Then, I sample saliency from e.g. -100msec, which is actual e.g. t where I am drawn from.
+    #REV: for TP, t should be same as timeidx...
     
     #REV: These represent the "True" locations, however, I must modify it to get "closest"
     offsettime = timeidx + deltasec; #REV: deltasec is probably negative...
@@ -119,7 +123,7 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     
     
     #df.iloc[(df['points']-101).abs().argsort()[:1]]
-    offsetdf = offsetdf.iloc[ (offsetdf[TCOL]-offsettime).abs().argsort()[:1] ];
+    offsetdf = offsetdf.iloc[ (offsetdf[TCOL]-offsettime).abs().argsort().head(1) ];
     if( 0 == len(offsetdf.index) ):
         print("No valid -delta timepoints for [{}]".format(timesec));
         return pd.DataFrame(); #REV: no value for -delta...
@@ -129,7 +133,7 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     offsetdf["tpfpdelta"] = "d";
     
     retdf = pd.concat( [tprow, fprows, offsetdf] );
-
+    
     offx = offsetdf.iloc[0][XCOL];
     offy = offsetdf.iloc[0][YCOL];
     
@@ -158,33 +162,55 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     return retdf;
 
 
-df_centeredlist = []; #pd.DataFrame();
-df_uncenteredlist = []; #pd.DataFrame();
+#df_centeredlist = []; #pd.DataFrame();
+#df_uncenteredlist = []; #pd.DataFrame();
+
+#REV: write to sqlite3 db...
+
+dbconn=sqlite3.connect(outfname, timeout=6000000);
+newcsv=True;
 
 DELTASEC=-0.100;
 for timesec in df.t.unique():
     resdf_centered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=True);
     resdf_uncentered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=False);
     
-    df_centeredlist.append( resdf_centered );
-    df_uncenteredlist.append( resdf_uncentered );
-    
+    #df_centeredlist.append( resdf_centered );
+    #df_uncenteredlist.append( resdf_uncentered );
+    resdf_centered["centered"] = True;
+    resdf_uncentered["centered"] = False;
+
+    outdf = pd.concat([resdf_centered, resdf_uncentered]);
+
+    if( len(outdf.index) > 0 ):
+        if( newcsv ):
+            #dbconn.execute('DROP TABLE data');
+            print("Attempting to save to {}".format(outfname));
+            outdf.to_sql('data', dbconn, if_exists='replace', index=False );
+            newcsv=False;
+            pass;
+        else:
+            outdf.to_sql('data', dbconn, if_exists='append', index=False );
+            pass;
+        pass;
     pass;
 
-df_centered = pd.concat(df_centeredlist);
-df_uncentered = pd.concat(df_uncenteredlist);
+print("FINISHED, {}".format(outfname));
 
-df_centered["centered"] = True;
-df_uncentered["centered"] = False;
+#df_centered = pd.concat(df_centeredlist);
+#df_uncentered = pd.concat(df_uncenteredlist);
+
+#df_centered["centered"] = True;
+#df_uncentered["centered"] = False;
 
 
 
-dffinal = pd.concat([df_centered, df_uncentered]);
+#dffinal = pd.concat([df_centered, df_uncentered]);
 
-print("Will write to CSV file {}".format(outfname));
-dffinal.to_csv(outfname, index=False);
+#print("Will write to CSV file {}".format(outfname));
+#dffinal.to_csv(outfname, index=False);
 
-print("Wrote to CSV file {}".format(outfname));
+#print("Wrote to CSV file {}".format(outfname));
 
 #REV: fuck when I make the video it's going to be nasty...need to do for "every" timepoint... (every FRAME?!) Sample saliency from gaussian around?
 #REV: i.e. not just from instant, but from salmaps for e.g. one or two frames, with varying values... LPF faster...

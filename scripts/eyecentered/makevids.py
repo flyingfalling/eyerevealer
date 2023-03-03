@@ -141,8 +141,53 @@ def blurgauss( img, radpx ):
     res = cv2.GaussianBlur( src=img, ksize=(0,0), sigmaX=radpx );
     return res;
 
+iscentered= (centuncent=="centered");
+#df = df[ (df.centered == iscentered ) ];
 
-df = pd.read_csv( fname, sep=sep );
+
+import sqlite3;
+tablename='data';
+indbconn = sqlite3.connect( fname, timeout=60000000 );
+dflist=[];
+totallines=0;
+
+#REV: try sorting it first???
+dbtime = time.time();
+#mylist = indbconn.execute('PRAGMA table_info(data)');
+cur = indbconn.cursor()
+res = cur.execute("SELECT count(*) FROM  sqlite_master WHERE  type= 'index' and tbl_name = 'data' and name = 'timeidx_id'").fetchone();
+#columns = [i[1] for i in cur.execute('PRAGMA table_info(data)')];
+#print(columns);
+indexexists=res[0];
+if( indexexists < 1 ): #'timeidx_id' not in columns ):
+    indbconn.execute('CREATE INDEX timeidx_id ON data(timeidx)');
+    indbconn.commit();
+    pass;
+print("Sorted DB: {:4.1f} msec".format((time.time()-dbtime)*1e3));
+
+
+#REV: sanity check min/max...
+#minx= cur.execute("SELECT MIN(x) FROM data");
+#res= cur.execute("SELECT MIN(sampx), MAX(sampx), MIN(sampy), MAX(sampy) FROM data");
+#res= cur.execute("SELECT MIN(x), MAX(x), MIN(y), MAX(y) FROM data");
+#REV: OK, so tobii3 allows values outside of the image... (i.e. they can be outside 0,1 for normalized values). Fuck this. Just remove everything that is outside my legal area...
+
+#print(res.fetchone());
+
+
+dbtime = time.time();
+dflist=[];
+for chunk in pd.read_sql( 'SELECT t,timeidx FROM {} WHERE centered = {} AND tpfpdelta=="d" ORDER BY t'.format(tablename,iscentered), indbconn, chunksize=500000 ):
+    totallines+=len(chunk.index);
+    print("Read {} lines (Total: {})".format(len(chunk.index), totallines));
+    dflist.append(chunk);
+    pass;
+print("FIRST DB (delta index) Read: {:4.1f} msec".format((time.time()-dbtime)*1e3));
+
+ddf = pd.concat(dflist);
+
+
+#df = pd.read_csv( fname, sep=sep );
 #df = df2.rename(columns={tcol:"t", xcol:"x", ycol:"y"}); #inplace=True                                                     
 
 
@@ -181,14 +226,12 @@ for key in salfnamedict:
     saloutfname = outvidfname + "_" + key + ext;
     print("Saliency map: {}  (file: {}) output will be: {}".format(key, salinfname, saloutfname));
     scapdict[key] = cv2.VideoCapture( salinfname );
-
+    
     #REV: sal output is same size as raw input
     swriterdict[key] = cv2.VideoWriter();
     swriterdict[key].open( saloutfname, fourcc=fourcc, fps=fps, frameSize=(w, h), isColor=isColor );
     pass;
 
-iscentered= (centuncent=="centered");
-df = df[ (df.centered == iscentered ) ];
 
 wpxperdva = w/viddvawid;
 hpxperdva = h/viddvahei;
@@ -199,22 +242,26 @@ hpxperdva = h/viddvahei;
 xcent=int(w/2);
 ycent=int(h/2);
 
+'''
 #REV: x will be actually the um, xsamp! Fuck...
 df["xsamppx"] = df.sampx * wpxperdva + xcent;
-
-#REV: norm x from left
-df["xsamppx01"] = (df.sampx * wpxperdva + xcent)/w;
 
 #REV: y input is positive up, positive right. Need to make positive down.
 df["ysamppx"] = -(df.sampy * hpxperdva) + ycent;
 
+#REV: norm x from left
+#df["xsamppx01"] = (df.sampx * wpxperdva + xcent)/w;
+
+
+
 #REV: norm y from top
-df["ysamppx01"] = (-(df.sampy * hpxperdva) + ycent)/h;
+#df["ysamppx01"] = (-(df.sampy * hpxperdva) + ycent)/h;
 
 print("Min/Max X: {}/{}    Y: {}/{}".format(df.xsamppx.min(), df.xsamppx.max(), df.ysamppx.min(), df.ysamppx.max()));
 
 #df = df.reset_index(); #REV: uhhh...so that at least rows are unique.
 print(df.head(10));
+'''
 
 #REV: radii of circles or std of gaussians (in dva) to sample saliency. Will just blur image using filter and draw central pixels.
 #sal_circ_rads_dva = np.arange(1, 8.1, 1.0); #1,1.5,...4.5,5 i.e. 9 points...
@@ -255,7 +302,7 @@ outdf = pd.DataFrame();
 
 ifps = 1/fps;
 fidx=0;
-maxt = df.timeidx.max();
+#maxt = df.timeidx.max();
 
 #REV: saveall makes it save all data to databases (raw fp etc.)
 #REV: otherwise it just save percentiles...and ROC?
@@ -301,18 +348,26 @@ while(True):
     stt = fidx * ifps;
     ent = stt+ifps;
     print("Doing for t=[{}]".format(stt));
-    if( False == ret or stt > maxt ):
+    if( False == ret ):
         print("Breaking!!! (ret was false or > max desired time point)");
         break;
+
+    #REV: t is the actual time it is draw from... that's not right.
+    #REV: Problem: i need to draw "timeidx" but not at true time, but at earlier times. First read is just to get potential
     
-    
-    mydf = df[ (df.t >= stt) & (df.t < ent) & (df.tpfpdelta == "d")];
+        
+    #mydf = df[ (df.t >= stt) & (df.t < ent) & (df.tpfpdelta == "d")];
+    #mydf = df[ (df.tpfpdelta == "d")];
     #REV: should return only a few, for each of those, get the ones that matter...
 
+    mydf = ddf[ (ddf.t>=stt) & (ddf.t < ent) ];
+    
+    print(mydf);
+    
     circframe = frame.copy();
-
+    
     framedflist=[];
-
+    
     circsaldvadict = {};
     gausssaldvadict = {};
     for salkey in sframes:
@@ -324,14 +379,39 @@ while(True):
             gausssaldvadict[(salkey,dva)] = gaussfilt;
             pass;
         pass;
+
+    df=None;
+    dbtime=time.time();
+    if( len(mydf.timeidx) > 1 ):
+        df = pd.read_sql( 'SELECT * FROM {} WHERE centered = {} AND timeidx IN {} ORDER BY timeidx'.format(tablename,iscentered,tuple(mydf.timeidx.tolist())), indbconn);
+        pass;
+    elif( len(mydf.timeidx) == 1 ):
+        df = pd.read_sql( 'SELECT * FROM {} WHERE centered = {} AND timeidx = {} ORDER BY timeidx'.format(tablename,iscentered,mydf.timeidx.tolist()[0]), indbconn);
+        pass;
+    else:
+        print("No rows...");
+        pass;
+    print("DB Read: {:4.1f} msec".format((time.time()-dbtime)*1e3));
+    
+    if( df is not None ):
+        #REV: this only works because i linearly scaled before...pointless. Doing this because of tobii g3 not care about in range [0,1]...esp for vertical.
+        df = df[ (df.sampx > -viddvawid/2) & (df.sampx < viddvawid/2) & (df.sampy > -viddvahei/2) & (df.sampy < viddvahei/2)];
+        df["xsamppx"] = df.sampx * wpxperdva + xcent;
+        df["ysamppx"] = -(df.sampy * hpxperdva) + ycent; #REV: y input is positive up, positive right. Need to make positive down.
+        pass;
     
     for idx, row in mydf.iterrows():
         idx = row.timeidx;
-        df2 = df[ (df.timeidx == idx) ];
+        df2 = df[ df.timeidx == idx ]; #.copy();
+        #df2 = pd.read_sql( 'SELECT * FROM {} WHERE centered = {} AND timeidx = {}'.format(tablename,iscentered,idx), indbconn);
+        
         tps = df2[ (df2.tpfpdelta == "t") ];
         nulls = df2[ (df2.tpfpdelta == "f") ];
         offsets = df2[ (df2.tpfpdelta == "d") ];
 
+        if( len(tps.index) < 1 or len(nulls.index) < 50 ):
+            print("Insufficient timepoints (TP was outside frame?!)");
+            break;
         
         #REV: sample the salmaps...
         for salkey in sframes:
@@ -341,7 +421,7 @@ while(True):
                 radpx = radsdict[dva];
                 #circfilt = blurcirc( sframes[salkey], radsdict[dva] );
                 circfilt = circsaldvadict[(salkey,dva)];
-
+                
                 circresdfnulls = sampsal( circfilt, xydf=nulls );
                 circresdftps = sampsal( circfilt, xydf=tps );
                 circresdfoffs = sampsal( circfilt, xydf=offsets );
