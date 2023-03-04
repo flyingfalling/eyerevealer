@@ -11,8 +11,7 @@ import sqlite3
 import numpy as np
 
 dbfname = sys.argv[1];
-tablename = sys.argv[2];
-outfname = sys.argv[3];
+outfname = sys.argv[2];
 
 
 
