@@ -16,9 +16,19 @@ outfname = sys.argv[3];
 
 
 
+
 #REV: read it all into memory or should I do something else like...only query where tpfpdelta == t Yea...
+#REV: I do this with DISTINCT
 
 #REV: this takes too long... I need to 1) create an index on timeidx 2) read chunks...
+#REV: I do this, still too long... for iterating through timeidx even though sorted? FUck?
+
+#REV: Best: create databases with foreign keys. Can JOIN each time without explicitly naming foreign key?
+#REV: Ghtto foreign keys? I.e. just timeidxs, G type, S type, etc. Better to do all in SQL ugh.
+
+#REV: all time data points have a foreign key! Basically I need to start from...something and build database up?
+#REV: start from sample TPFP. At this point, we simply have centered or uncentered (again two things?) Why not just have its own indx?
+#REV: faster to have foreign key for indexing?
 
 import sqlite3;
 tablename='data';
@@ -29,6 +39,7 @@ dbtime = time.time();
 cur = indbconn.cursor()
 res = cur.execute("SELECT count(*) FROM  sqlite_master WHERE  type= 'index' and tbl_name = 'data' and name = 'timeidx_id'").fetchone();
 indexexists=res[0];
+print("Does index exist? # exists timeidx_id: {}".format(indexexists));
 if( indexexists < 1 ):
     indbconn.execute('CREATE INDEX timeidx_id ON data(timeidx)');
     indbconn.commit();
@@ -77,21 +88,52 @@ def calc_auroc(posvals, negvals, thresholds):
     #REV: now "area under" i.e. fpr is X, tpr is Y. FPR diff is "weight", and TPR is "value"? Need to CUMULATIVE though!? But,
     #REV: backwards...so wtf? Yea, I can't do diff. I need to use raw value.
     
+#REV: time indices, how many? I.e. 100*60*60 for an hour = 360000 doubles, i.e. 8*360k bytes. 720*4 1440*2 2880k bytes. 2.8mb?
+atime =time.time();
+
+'''
+chromosome_set = set()
+current_chromosome = ''
+while True:
+    db_record = cur.execute("SELECT chromosome FROM dbsnp WHERE chromosome > ? ORDER BY chromosome LIMIT 1", [current_chromosome,]).fetchall()
+    if db_record:
+        current_chromosome = db_record[0][0]
+        chromosome_set.add(current_chromosome)
+    else:
+        break;
+    pass;
+'''
+
+'''
+timeidxdf = pd.read_sql("SELECT DISTINCT timeidx FROM data", indbconn);
+print(timeidxdf);
+maxtimeidx=timeidxdf.timeidx.max();
+print("Read timeidxs, took {} msec. MIN {}  MAX {}   NPTS: {}".format(1e3*(time.time()-atime), timeidxdf.timeidx.min(), timeidxdf.timeidx.max(), len(timeidxdf.index)));
+'''
 
 #REV: do this with DB.
-    
+
 mylist = [];
 togrp = ['blurdva', 'blur', 'saltype'];
 threshs=list(range(0,256));
 
-timeidxs = cur.execute("SELECT MIN(timeidx), MAX(timeidx) FROM data").fetchone();
-print("Starting timeidx {}".format(timeidxs));
-print(timeidxs);
-mintimeidx = timeidxs[0];
-maxtimeidx = timeidxs[1];
+#timeidxs = cur.execute("SELECT MIN(timeidx), MAX(timeidx) FROM data").fetchone();
+#print("Starting timeidx {}".format(timeidxs));
+#print(timeidxs);
+#mintimeidx = timeidxs[0];
+#maxtimeidx = timeidxs[1];
+
+#timeidx = mintimeidx;
+
+mintimeidx = cur.execute("SELECT timeidx FROM data ORDER BY timeidx LIMIT 1").fetchone()[0];
+maxtimeidx = cur.execute("SELECT timeidx FROM data ORDER BY timeidx DESC LIMIT 1").fetchone()[0];
+print("Min: {}   Max: {}".format(mintimeidx, maxtimeidx));
+
 timeidx = mintimeidx;
 
 while( timeidx <= maxtimeidx ):
+#REV: better to iterrows?
+#for timeidx in timeidxdf.timeidx:
     print("Time idx {}/{}".format(timeidx,maxtimeidx));
     df = pd.read_sql( 'SELECT * FROM {} WHERE timeidx=={}'.format('data', timeidx), indbconn );
     if( len(df.index) < 1 ):
@@ -102,19 +144,28 @@ while( timeidx <= maxtimeidx ):
         myt = vdf[ vdf.tpfpdelta=='t' ].iloc[0]['sal'];
         fps = vdf[ vdf.tpfpdelta=='f' ];
         pctle = calc_pctl(myt, fps['sal']);
-        auroc = calc_auroc([myt], fps['sal'], threshs);
+        #auroc = calc_auroc([myt], fps['sal'], threshs);
         val = list(val);
-        mylist.append( val + [pctle, auroc] );
+        #mylist.append( val + [pctle, auroc] );
+        mylist.append( val + [pctle] );
         pass;
     
-    timeidx = cur.execute("SELECT MIN(timeidx) FROM data WHERE timeidx > {}".format(timeidx)).fetchone()[0];
+    #timeidx = cur.execute("SELECT timeidx FROM data WHERE timeidx > ? ORDER BY timeidx LIMIT 1", [timeidx,]).fetchone();
+    res = cur.execute("SELECT timeidx FROM data WHERE timeidx > ? ORDER BY timeidx LIMIT 1", [timeidx,]).fetchone();
+    if( len(res) < 1 ):
+        print("Maybe last timeidx? Didn't get results...");
+        break;
+    else:
+        timeidx=res[0];
+        pass;
     
     pass;
 
-resdf = pd.DataFrame(columns=togrp+['pctle', 'auroc'], data=mylist);
+#resdf = pd.DataFrame(columns=togrp+['pctle', 'auroc'], data=mylist);
+resdf = pd.DataFrame(columns=togrp+['pctle'], data=mylist);
 
 #REV: not printing this out, this just summary.
-result = resdf[['blurdva', 'blur', 'saltype', 'pctle', 'auroc']].groupby(['blurdva', 'blur', 'saltype']).mean();
+result = resdf[['blurdva', 'blur', 'saltype', 'pctle']].groupby(['blurdva', 'blur', 'saltype']).mean();
 print(result);
 print("Writing CSV to {}".format(outfname));
 #result.to_csv(outfname);
