@@ -18,6 +18,6 @@ do
     echo $OUTSTD
     #python3 get_pcts.py $INFNAME $OUTFNAME 1> "$OUTSTD" 2>&1 &
     #python3 get_pcts.py $INFNAME $OUTFNAME 1>"$OUTSTD" 2>&1 &
-    bash run_single_pct.sh $INFNAME $OUTFNAME &>$OUTSTD &
+    bash run_single_pct.sh $INFNAME $OUTFNAME &
     #1>$OUTSTD 2>&1 &
 done

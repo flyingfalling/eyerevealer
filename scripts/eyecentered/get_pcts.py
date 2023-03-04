@@ -150,7 +150,7 @@ while( timeidx <= maxtimeidx ):
         #auroc = calc_auroc([myt], fps['sal'], threshs);
         val = list(val);
         #mylist.append( val + [pctle, auroc] );
-        mylist.append( val + [pctle] );
+        mylist.append( val + [timeidx, pctle] );
         pass;
     
     #timeidx = cur.execute("SELECT timeidx FROM data WHERE timeidx > ? ORDER BY timeidx LIMIT 1", [timeidx,]).fetchone();
@@ -165,13 +165,13 @@ while( timeidx <= maxtimeidx ):
     pass;
 
 #resdf = pd.DataFrame(columns=togrp+['pctle', 'auroc'], data=mylist);
-resdf = pd.DataFrame(columns=togrp+['pctle'], data=mylist);
+resdf = pd.DataFrame(columns=togrp+['timeidx', 'pctle'], data=mylist);
 
 #REV: not printing this out, this just summary.
-result = resdf[['blurdva', 'blur', 'saltype', 'pctle']].groupby(['blurdva', 'blur', 'saltype']).mean();
+result = resdf[['timeidx', 'blurdva', 'blur', 'saltype', 'pctle']].groupby(['blurdva', 'blur', 'saltype']).mean();
 print(result);
 print("Writing CSV to {}".format(outfname));
 #result.to_csv(outfname);
 resdf.to_csv(outfname+'.csv', index=False);
 
-print("Finished");
+print("Finished {}".format(outfname));

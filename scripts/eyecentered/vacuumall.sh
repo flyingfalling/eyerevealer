@@ -11,3 +11,6 @@ do
     sqlite3 $f vacuum &
 done
 
+echo "Waiting VACUUM"
+wait
+echo "Finished VACUUM"

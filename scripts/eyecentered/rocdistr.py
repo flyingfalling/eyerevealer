@@ -13,7 +13,7 @@ df = pd.read_csv(infile);
 
 print(df.groupby(['blurdva', 'blur', 'saltype']).mean());
 print(df.groupby(['blurdva', 'blur', 'saltype']).mean().max());
-print(np.sum(df.pct - df.roc)); #REV: should be 0
+#print(np.sum(df.pctle - df.roc)); #REV: should be 0
 
 ntypes=len(df.groupby(['blurdva', 'blur', 'saltype'])); #36, i.e. 3 * 2 * 6 i.e. 12*3 i.e. 36 ok.
 print(ntypes);
@@ -23,10 +23,10 @@ idx=0;
 for grp, gdf in df.groupby(['blurdva', 'blur', 'saltype']):
     #print(grp);
     #print( gdf[['pct','roc']].mean() );
-    h1 = axs[idx,0].hist( gdf.roc, bins=20 );
-    h2 = axs[idx,1].hist( gdf.pct, bins=20 );
-    axs[idx,0].set_title( 'ROC {} {:3.2f}'.format(grp, gdf.roc.mean()) );
-    axs[idx,1].set_title( 'PCT {} {:3.2f}'.format(grp, gdf.pct.mean()) ); #REV: this isn't "all", which mixes up all together...
+    #h1 = axs[idx,0].hist( gdf.roc, bins=20 );
+    h2 = axs[idx,1].hist( gdf.pctle, bins=20 );
+    #axs[idx,0].set_title( 'ROC {} {:3.2f}'.format(grp, gdf.roc.mean()) );
+    axs[idx,1].set_title( 'PCT {} {:3.2f}'.format(grp, gdf.pctle.mean()) ); #REV: this isn't "all", which mixes up all together...
     #print(h1);
     #print(h2);
     idx+=1;
@@ -39,6 +39,7 @@ fig.savefig('rochist_' + tag + '.pdf');
 
 #REV: do sliding window...
 #1) convert to timedeltas...and sort.
+print( df);
 print( df.timeidx.head() );
 df.timeidx = df.timeidx.astype('timedelta64[s]'); #np.timedelta64( df.timeidx );
 
