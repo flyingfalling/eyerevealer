@@ -31,11 +31,15 @@ outfname = sys.argv[2];
 
 import sqlite3;
 tablename='data';
+print("Will connect to DB {}".format(dbfname));
 indbconn = sqlite3.connect( dbfname, timeout=60000000 );
+
+print("Connected to db {}".format(dbfname));
 
 #REV: try sorting it first???
 dbtime = time.time();
 cur = indbconn.cursor()
+print("Got cursor...checking if IDX exists");
 res = cur.execute("SELECT count(*) FROM  sqlite_master WHERE  type= 'index' and tbl_name = 'data' and name = 'timeidx_id'").fetchone();
 indexexists=res[0];
 print("Does index exist? # exists timeidx_id: {}".format(indexexists));
