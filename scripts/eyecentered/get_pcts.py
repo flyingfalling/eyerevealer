@@ -152,7 +152,7 @@ while( timeidx <= maxtimeidx ):
     
     #timeidx = cur.execute("SELECT timeidx FROM data WHERE timeidx > ? ORDER BY timeidx LIMIT 1", [timeidx,]).fetchone();
     res = cur.execute("SELECT timeidx FROM data WHERE timeidx > ? ORDER BY timeidx LIMIT 1", [timeidx,]).fetchone();
-    if( len(res) < 1 ):
+    if( res is None ):
         print("Maybe last timeidx? Didn't get results...");
         break;
     else:
