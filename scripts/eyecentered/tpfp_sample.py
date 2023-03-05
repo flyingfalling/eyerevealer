@@ -85,10 +85,22 @@ df.t *= tu;
 #REV: note, near end of fixation...I'll keep looking! Great ;) I could do for different delta's I guess? By accident one may be better though :(
 #REV: 
 
+#REV: I will make proper databases
 
-NNEGSAMPS=1000;
-POSTGRACESEC=0.025;
-PREGRACESEC=0.050;
+#1) actual gaze data. This will stay constant. I.e. gaze2d_1, etc., etc.
+#   This will have "indices" (i.e. each gaze sample? will be an independent key
+#REV: should I make a single db for all trials? raw_blah? Or separate for each? For now, separate for each...
+
+#2) Smoothing algorithm. I will also "smooth" or resample? And also create e.g. saccade and fixation databases... those will also be separate?
+
+#3) Sampled gaze data (by...trial or some shit?). I need to get for CENTERED and UNCENTERED? Actually, the samples are the same...right?
+#   
+#2) 
+
+
+NNEGSAMPS=500;
+POSTGRACESEC=0.050;
+PREGRACESEC=0.025;
 def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", YCOL="y"):
     print("Processing: [{}]".format(timesec));
     tprow = gazedf[ (gazedf[TCOL] == timesec) & (False == gazedf[XCOL].isna()) ].copy();
@@ -110,7 +122,7 @@ def sample_tpfp(deltasec, gazedf, timesec, centered=False, TCOL="t", XCOL="x", Y
     #REV: if timeidx is not timesec, error?
     tprow["timeidx"] = timeidx;
     fprows["timeidx"] =timeidx;
-
+    
     #REV: timeidx is the UNOFFSET time (i.e. the time point of which the X, Y of the TP is drawn). Then, I sample saliency from e.g. -100msec, which is actual e.g. t where I am drawn from.
     #REV: for TP, t should be same as timeidx...
     
@@ -172,6 +184,7 @@ newcsv=True;
 
 DELTASEC=-0.100;
 for timesec in df.t.unique():
+    #REV: only difference between centered and uncentered is that OFFSET
     resdf_centered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=True);
     resdf_uncentered = sample_tpfp(deltasec=DELTASEC, gazedf=df, timesec=timesec, centered=False);
     

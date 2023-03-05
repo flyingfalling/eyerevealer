@@ -379,11 +379,7 @@ int main(int argc, char** argv)
 		  auto timestamp = maybesec.value();
 		  vidtsof << frameidx << " "
 			  << timestamp << std::endl;
-
-		  if( maybesec.value() > 30 )
-		    {
-		      break;
-		    }
+		  
 		}
 	      else
 		{
@@ -470,7 +466,7 @@ int main(int argc, char** argv)
   std::string gazeoutfname = gazeoutfn; //"tobii2gaze.gaze"; //Just timestamp, xpos, ypos.
   std::ofstream of(gazeoutfname);
   of << "TSEC IDX VAR ELEM VAL" << std::endl;
-
+  
   const std::vector<std::string> vars = {"pc", "pd", "gd", "gp", "gp3", "gy", "ac", "gidx", "eye", "l"};
 
   size_t index=0;
