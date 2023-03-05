@@ -1,0 +1,25 @@
+Just combine all true positives and false positives into single clump?
+And take as "curve" at multiple thresholds?
+
+It will only work if they are normalized within?
+
+Why not take percentile within TP and FP.
+
+We only have one TP measurement, not a "rate". Note, area under it will be 0.5 if the threshold is exactly in the middle...I.e. if it is at 50 pct?
+
+The percentile is...what? Just do at various values? Yes, but I must plot it against false positive rate...
+
+TP rate (on bottom e.g.), determines where the "jump" will be.
+
+Similarly, FP rate (on left) will meaninglessly trace the vertical line...?
+
+No, They will all be clustered either at 0 or one, (for TP), and it will
+Trace along the wall for FP rate...
+
+
+
+
+REV:
+
+1) ROC as function of saliency (distribution), mean/max/std in X, Y, and Z (and cross correlation?)
+2) ROC as function of LOOKING distribution (of TP and FP), mean/max/std in X, Y. Since TP are drawn from FP, it doesn't matter? Could be local time, but looks may tend to cluster locally, because SALIENCY may cluster locally in time, because things in the world stay the same. I.e. I should take the average of subject in all conditions, not only locally (user model?). I.e. null model should be subject during ALL OTHER CONDITIONS? And time points sufficiently divorced from the current time? Or randomly sampled over windows in recent history.
