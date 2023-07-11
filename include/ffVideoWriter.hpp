@@ -174,8 +174,9 @@ public:
       cmd += " -i -"; //INPUT specification -- Read input from stdin (of my pipe) //cmd += " -i pipe:";
       cmd += " -flags -global_header";
       cmd += " -filter_hw_device foo";
-      //cmd += " -vf 'format=nv12|vaapi,hwupload' -c:v " + encoder;
-      cmd += " -vf 'format=nv12|vaapi,hwupload,scale_vaapi=format=nv12' -c:v " + encoder;
+      cmd += " -vf 'format=nv12|vaapi,hwupload' -c:v " + encoder;
+      //REV: this was necessary for some CPU/GPU, but it breaks intel 12th gen and above is sufficient for AMD ryzen 7 6800U
+      //cmd += " -vf 'format=nv12|vaapi,hwupload,scale_vaapi=format=nv12' -c:v " + encoder;
       cmd += " -qp 0"; //output options -- specify video filters and codec
       cmd += " \"" + fullpath + "\""; //Output path (filter specification blah blah [outputsink]?) -- WRAP IN QUOTES!
     }
